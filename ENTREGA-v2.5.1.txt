@@ -1,0 +1,272 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                                                                            ║
+║                        ✅ ENTREGA v2.5.1 - FINAL                           ║
+║                                                                            ║
+║                   WhatsApp Baileys Real + PostgreSQL                       ║
+║                                                                            ║
+║                        PRONTO PARA PRODUÇÃO                               ║
+║                                                                            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 PARA O NOVO PROGRAMADOR:
+
+Se você recebeu esta pasta, você tem TUDO pronto para atualizar o ERP.
+
+Basta seguir 3 passos:
+
+1️⃣  LEIA PRIMEIRO: LEIA-PRIMEIRO-v2.5.1.md
+    └─ Vai te mostrar qual documento ler conforme sua necessidade
+    └─ Tempo: 2-3 minutos
+
+2️⃣  ESCOLHA SEU CENÁRIO:
+    ├─ Quer atualizar rápido? → RESUMO-UPDATE-v2.5.1.txt
+    ├─ Quer entender tudo? → ATUALIZACOES-v2.5.1.md
+    ├─ Quer validar? → CHECKLIST-VALIDACAO-v2.5.1.md
+    └─ Quer fazer commit? → MODELO-COMMIT-v2.5.1.sh
+    └─ Tempo: 3-20 minutos
+
+3️⃣  EXECUTE E PRONTO!
+    └─ Tempo: ~7 minutos de atualização
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📦 O QUE VOCÊ ESTÁ RECEBENDO:
+
+✨ DOCUMENTAÇÃO (7 arquivos):
+   ├─ LEIA-PRIMEIRO-v2.5.1.md ........... Índice principal
+   ├─ RESUMO-UPDATE-v2.5.1.txt ........ Resumo executivo
+   ├─ ATUALIZACOES-v2.5.1.md ......... Documentação técnica
+   ├─ GUIA_CRIAR_TABELAS.md ........... Manual de banco
+   ├─ CHECKLIST-VALIDACAO-v2.5.1.md ... Validação
+   ├─ MODELO-COMMIT-v2.5.1.sh ........ Modelo de commit
+   └─ INDICE-v2.5.1.txt .............. Este índice
+
+✨ CÓDIGO (3 arquivos novos/modificados):
+   ├─ src/lib/whatsappService.ts ....... Serviço WhatsApp
+   ├─ src/app/qr-code/page.tsx ........ Página visual
+   ├─ src/app/api/whatsapp/route.ts ... API (modificado)
+   ├─ package.json .................... +3 dependências
+   └─ package-lock.json ............... Atualizado
+
+✨ BANCO DE DADOS (1 arquivo):
+   └─ create-tables.sql ............... 16 tabelas
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 ROTEIRO RÁPIDO (SE VOCÊ TEM PRESSA):
+
+$ cd /www/wwwroot
+$ mv erp-grafica erp-grafica-backup-v2.5.0
+$ unzip print-shop-erp-v2.5.1.zip
+$ cd erp-grafica
+
+$ npm install --legacy-peer-deps
+$ psql -U postgres -d app_db -f create-tables.sql
+$ npm run build
+$ pm2 restart erp-grafica
+
+✅ Pronto! Tempo total: ~7 minutos
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 VALIDAÇÃO RÁPIDA (TESTE AGORA):
+
+$ curl http://localhost:3000/api/whatsapp
+
+Esperado: {"config": {"id":..., "status":...
+
+Se vir isso → ✅ FUNCIONANDO!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📚 ONDE BUSCAR AJUDA:
+
+PERGUNTA                          DOCUMENTO
+──────────────────────────────────────────────────────────────────────────────
+"Como atualizar?"                 → RESUMO-UPDATE-v2.5.1.txt
+"Qual documento ler?"             → LEIA-PRIMEIRO-v2.5.1.md
+"Entender tudo em detalhes"       → ATUALIZACOES-v2.5.1.md
+"Problemas com banco/SQL"         → GUIA_CRIAR_TABELAS.md
+"Validar antes de enviar"         → CHECKLIST-VALIDACAO-v2.5.1.md
+"Como fazer commit no git"        → MODELO-COMMIT-v2.5.1.sh
+"Índice de tudo"                  → INDICE-v2.5.1.txt
+"Qual é este arquivo"             → ENTREGA-v2.5.1.txt (aqui!)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 INFORMAÇÕES IMPORTANTES:
+
+✅ WHATSAPP FUNCIONANDO:
+   └─ QR code REAL (não simulado)
+   └─ Baileys conectado e respondendo
+   └─ Página visual para conectar em /qr-code
+
+✅ BANCO DE DADOS CRIADO:
+   └─ 16 tabelas PostgreSQL
+   └─ Tudo pronto para usar
+   └─ Script SQL incluído (create-tables.sql)
+
+✅ DOCUMENTAÇÃO COMPLETA:
+   └─ 7 documentos diferentes
+   └─ Escolha qual ler conforme sua necessidade
+   └─ Tudo em português
+
+✅ TESTE E VALIDAÇÃO:
+   └─ Comandos prontos para executar
+   └─ Checklist incluído
+   └─ Tudo testado e funcionando
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 DEPENDÊNCIAS ADICIONADAS:
+
+Se receber erro "Module not found", execute:
+
+$ npm install --legacy-peer-deps
+
+Isso vai instalar:
+  • @whiskeysockets/baileys@^6.7.0
+  • sharp@^0.33.0
+  • jimp@^0.22.0
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️ CUIDADOS IMPORTANTES:
+
+1. Sempre faça backup antes:
+   $ mv erp-grafica erp-grafica-backup-v2.5.0
+
+2. Use a flag --legacy-peer-deps:
+   $ npm install --legacy-peer-deps
+
+3. Crie as tabelas OBRIGATORIAMENTE:
+   $ psql -U postgres -d app_db -f create-tables.sql
+
+4. Não commita pasta .wh-auth/:
+   └─ Contém credenciais sensíveis
+   └─ Já deve estar no .gitignore
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✨ MUDANÇAS VISÍVEIS NO SISTEMA:
+
+ANTES (v2.5.0):
+├─ ❌ QR code inválido
+├─ ❌ Erro "Table not found"
+├─ ❌ Sem página para conectar
+└─ ❌ WhatsApp não funciona
+
+DEPOIS (v2.5.1):
+├─ ✅ QR code real e válido
+├─ ✅ API funcionando
+├─ ✅ Página /qr-code bonita
+├─ ✅ 16 tabelas PostgreSQL
+└─ ✅ WhatsApp pronto para usar
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔄 FLUXO RECOMENDADO:
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│                                                                         │
+│  1. Você recebe este arquivo (ENTREGA-v2.5.1.txt)                      │
+│                    ↓                                                    │
+│  2. Lê: LEIA-PRIMEIRO-v2.5.1.md                                        │
+│                    ↓                                                    │
+│  3. Escolhe seu cenário (rápido, completo, validação, etc)            │
+│                    ↓                                                    │
+│  4. Lê o documento recomendado                                         │
+│                    ↓                                                    │
+│  5. Executa os passos                                                  │
+│                    ↓                                                    │
+│  6. Testa: curl http://localhost:3000/api/whatsapp                    │
+│                    ↓                                                    │
+│  7. Faz commit usando MODELO-COMMIT-v2.5.1.sh                         │
+│                    ↓                                                    │
+│  8. Envia para atualização em produção                                │
+│                    ↓                                                    │
+│  ✅ PRONTO! Sistema atualizado e funcionando                          │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 SUMÁRIO TÉCNICO:
+
+Aspecto                  Antes          Depois
+─────────────────────────────────────────────────────────
+QR Code WhatsApp         Simulado       Real ✅
+Banco de Dados           Incompleto     16 tabelas ✅
+API /whatsapp            Erro           Funcional ✅
+Página /qr-code          Não existe      Visual ✅
+Dependências Novas       Nenhuma        3 novas ✅
+Build                    OK             OK ✅
+Status                   Quebrado        Funcional ✅
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎁 BÔNUS - PRÓXIMAS MELHORIAS:
+
+Se quiser ir além (v2.5.2+):
+  └─ Armazenar QR em banco para dashboard
+  └─ Auto-reconexão inteligente
+  └─ Webhook para mensagens recebidas
+  └─ Sistema de fila para envio em massa
+  └─ Dashboard de status em tempo real
+
+(Detalhes em: ATUALIZACOES-v2.5.1.md → Próximas Melhorias)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ VOCÊ ESTÁ 100% PREPARADO!
+
+Tudo que você precisa está nesta pasta:
+  ✅ Código novo e modificado
+  ✅ Banco de dados pronto
+  ✅ Documentação completa
+  ✅ Guias de atualização
+  ✅ Checklists de validação
+  ✅ Modelos de commit
+
+Basta escolher qual documento ler e seguir!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 COMECE AGORA:
+
+1. Abra: LEIA-PRIMEIRO-v2.5.1.md
+2. Siga as instruções
+3. Pronto! 🎉
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📞 PRECISA DE AJUDA URGENTE?
+
+Procure aqui:
+  ├─ Erro durante instalação? → ATUALIZACOES-v2.5.1.md (Troubleshooting)
+  ├─ Problema com SQL? → GUIA_CRIAR_TABELAS.md
+  ├─ QR code não aparece? → ATUALIZACOES-v2.5.1.md (Troubleshooting)
+  └─ Não sabe por onde começar? → LEIA-PRIMEIRO-v2.5.1.md
+
+═══════════════════════════════════════════════════════════════════════════════
+
+Arquivo: ENTREGA-v2.5.1.txt
+Data: 2026-08-12
+Status: ✅ ENTREGA COMPLETA
+Destinatário: Novo Programador
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✨ OBRIGADO POR USAR ESTA VERSÃO ✨
+
+v2.5.1 foi desenvolvida com cuidado para:
+✅ Resolver o problema do QR code inválido
+✅ Criar todas as tabelas PostgreSQL
+✅ Incluir documentação 100% completa
+✅ Facilitar o trabalho do novo programador
+
+Aproveite! 🚀
+
+═══════════════════════════════════════════════════════════════════════════════
