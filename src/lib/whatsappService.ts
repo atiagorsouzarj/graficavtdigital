@@ -1,14 +1,24 @@
 import QRCode from "qrcode";
 import { makeWASocket, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import { db } from "@/db";
-import { whatsappConfig, communicationTemplates } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { whatsappConfig, communicationTemplates, quotesOrders } from "@/db/schema";
+import { eq, or } from "drizzle-orm";
+import { AntiBanEngine } from "@/lib/antiBanEngine";
 import fs from "fs";
 import path from "path";
 
 const authDir = path.join(process.cwd(), ".wh-auth");
 let baileysSocket: any = null;
 let baileysQrCode: string | null = null;
+let socketConnectedAt: number | null = null;
+let connectedPhoneNumber: string | null = null;
+let reconnectAttempts = 0;
+let reconnectTimer: NodeJS.Timeout | null = null;
+let intentionalDisconnect = false;
+let pairingFlag = false;
+
+const qrWaiters: Array<(qr: string) => void> = [];
+const openWaiters: Array<() => void> = [];
 
 if (!fs.existsSync(authDir)) {
   fs.mkdirSync(authDir, { recursive: true });
@@ -31,7 +41,7 @@ export interface LiveChatMessage {
   sender: "customer" | "agent" | "bot";
   message: string;
   timestamp: string;
-  status: "sent" | "delivered" | "read" | "failed";
+  status: "sent" | "delivered" | "read" | "failed" | "queued";
 }
 
 export interface LiveChatContact {
@@ -83,38 +93,294 @@ const liveChatMessages: LiveChatMessage[] = [
   },
 ];
 
+const STATUS_LABELS: Record<string, string> = {
+  draft: "📝 Rascunho",
+  sent: "📤 Orçamento Enviado",
+  art_approval: "🎨 Aguardando Aprovação de Arte",
+  art_pending: "✏️ Alteração de Arte Solicitada",
+  production_ready: "✅ Pronto para Produção",
+  in_printing: "🖨️ Em Impressão Digital",
+  finishing: "✂️ Em Acabamento",
+  ready_for_pickup: "📦 Pronto para Entrega / Retirada",
+  completed: "🚚 Despachado / Concluído",
+  cancelled: "❌ Cancelado",
+};
+
 /**
- * Senior Baileys WhatsApp Service - WebSockets Bridge, Anti-Ban Delays, Human Presence, Live Chat & Kanban Triggers.
+ * Senior Baileys WhatsApp Service - makeWASocket (WebSockets Bridge), Anti-Ban Delays,
+ * Human Presence, Live Chat & Kanban Triggers.
  */
 export class WhatsappService {
   /**
    * Anti-ban jitter delay helper (simulates human typing pauses).
    */
   static async antiBanDelay(minMs: number = 1500, maxMs: number = 3500): Promise<void> {
-    const ms = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return AntiBanEngine.humanDelay(minMs, maxMs);
+  }
+
+  static isSocketConnected(): boolean {
+    return Boolean(baileysSocket && socketConnectedAt);
+  }
+
+  static getSocketInfo() {
+    return {
+      engine: "Baileys WebSockets Bridge v6.7.24 (makeWASocket + useMultiFileAuthState)",
+      connected: this.isSocketConnected(),
+      connectedPhone: connectedPhoneNumber,
+      uptimeSeconds: socketConnectedAt ? Math.floor((Date.now() - socketConnectedAt) / 1000) : 0,
+      authDir: ".wh-auth/",
+      reconnectAttempts,
+      qrCodeAvailable: Boolean(baileysQrCode),
+    };
+  }
+
+  private static async persistStatus(status: string, qrCodeUrl?: string | null): Promise<void> {
+    try {
+      const [existing] = await db.select().from(whatsappConfig).limit(1);
+      if (existing) {
+        const setData: Record<string, unknown> = { status, updatedAt: new Date() };
+        if (qrCodeUrl !== undefined) setData.qrCodeUrl = qrCodeUrl;
+        await db.update(whatsappConfig).set(setData).where(eq(whatsappConfig.id, existing.id));
+      }
+    } catch (error) {
+      console.error("persistStatus WhatsApp error:", error);
+    }
+  }
+
+  private static scheduleReconnect(): void {
+    if (reconnectTimer || intentionalDisconnect || reconnectAttempts >= 10) return;
+    const delay = Math.min(5000 * Math.pow(2, reconnectAttempts), 300000);
+    reconnectAttempts += 1;
+    reconnectTimer = setTimeout(() => {
+      reconnectTimer = null;
+      if (!intentionalDisconnect) {
+        try {
+          this.initSocket();
+        } catch (error) {
+          console.error("WhatsApp reconnect failed:", error);
+          this.scheduleReconnect();
+        }
+      }
+    }, delay);
+  }
+
+  /**
+   * Cria o socket Baileys REAL (makeWASocket) com proteções anti-ban:
+   * - connectTimeoutMs / qrTimeout (evita sessão pendurada)
+   * - markOnlineOnConnect: false (não fica "online" permanentemente)
+   * - Listener messages.upsert (bot automático com cooldown + cotas)
+   * - Reconexão automática com backoff exponencial
+   */
+  private static initSocket(): any {
+    if (baileysSocket) {
+      try {
+        intentionalDisconnect = true;
+        baileysSocket.end(new Error("socket_replace"));
+      } catch {
+        /* ignore */
+      }
+      baileysSocket = null;
+    }
+
+    let sock: any = null;
+    let state: any = null;
+
+    (async () => {
+      const auth = await useMultiFileAuthState(authDir);
+      state = auth.state;
+      const saveCreds = auth.saveCreds;
+
+      if (baileysSocket && baileysSocket !== sock) {
+        // A nova sessão foi criada por outro request; descarta esta.
+        try {
+          sock?.end(new Error("duplicate_socket"));
+        } catch {
+          /* ignore */
+        }
+        return;
+      }
+
+      sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true,
+        browser: ["PrintFlow ERP", "Chrome", "120.0"],
+        syncFullHistory: false,
+        retryRequestDelayMs: 100,
+        connectTimeoutMs: 60000,
+        qrTimeout: 60000,
+        markOnlineOnConnect: false,
+      });
+
+      baileysSocket = sock;
+
+      sock.ev.on("connection.update", (update: any) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+          baileysQrCode = qr;
+          pairingFlag = true;
+          const waiters = qrWaiters.splice(0, qrWaiters.length);
+          waiters.forEach((w) => {
+            try {
+              w(qr);
+            } catch (err) {
+              console.error("QR waiter error:", err);
+            }
+          });
+        }
+
+        if (connection === "open") {
+          socketConnectedAt = Date.now();
+          reconnectAttempts = 0;
+          pairingFlag = false;
+          baileysQrCode = null;
+          connectedPhoneNumber = sock.user?.id?.split(":")[0] || null;
+          this.persistStatus("connected", null);
+          const waiters = openWaiters.splice(0, openWaiters.length);
+          waiters.forEach((w) => {
+            try {
+              w();
+            } catch (err) {
+              console.error("Open waiter error:", err);
+            }
+          });
+        }
+
+        if (connection === "close") {
+          const statusCode = lastDisconnect?.error?.output?.statusCode;
+          socketConnectedAt = null;
+          const wasLoggedOut = statusCode === 401;
+
+          if (wasLoggedOut && typeof sock.logout === "function") {
+            try {
+              sock.logout();
+            } catch {
+              /* ignore */
+            }
+          }
+
+          if (!intentionalDisconnect && !wasLoggedOut) {
+            this.scheduleReconnect();
+          }
+
+          intentionalDisconnect = false;
+          this.persistStatus("disconnected", null);
+        }
+      });
+
+      sock.ev.on("creds.update", saveCreds);
+
+      // BOT AUTOMÁTICO: mensagens reais recebidas via WebSocket
+      sock.ev.on("messages.upsert", async (update: any) => {
+        const { messages, type } = update;
+        if (type !== "notify") return;
+
+        for (const msg of messages || []) {
+          if (!msg || msg.key?.fromMe) continue;
+
+          const jid = String(msg.key?.remoteJid || "");
+          if (!jid.endsWith("@s.whatsapp.net")) continue;
+
+          const content = msg.message || {};
+          const text =
+            content.conversation ||
+            content.extendedTextMessage?.text ||
+            content.imageMessage?.caption ||
+            content.videoMessage?.caption ||
+            "";
+          if (!text) continue;
+
+          const phone = jid.replace("@s.whatsapp.net", "");
+
+          try {
+            const result = await this.processBotQuery(phone, text);
+            if (!result.reply || result.throttled || result.botPaused) continue;
+
+            // Anti-ban: delay humano antes de responder
+            await this.antiBanDelay(1500, 3500);
+            const sent = await this.sendRawText(jid, result.reply);
+            if (sent) AntiBanEngine.recordSend(phone);
+          } catch (error) {
+            console.error("messages.upsert bot handler error:", error);
+          }
+        }
+      });
+    })().catch((error) => {
+      console.error("initSocket async error:", error);
+    });
+
+    return sock;
+  }
+
+  /**
+   * Envia texto real pelo socket com presença de digitação humana.
+   */
+  private static async sendRawText(jid: string, text: string): Promise<boolean> {
+    if (!baileysSocket) return false;
+    try {
+      await baileysSocket.sendPresenceUpdate("composing", jid);
+      await AntiBanEngine.typingDelayForText(text);
+      const res = await baileysSocket.sendMessage(jid, { text });
+      await baileysSocket.sendPresenceUpdate("paused", jid);
+      return Boolean(res);
+    } catch (error) {
+      console.error("sendRawText error:", error);
+      return false;
+    }
   }
 
   /**
    * Connect or Disconnect Baileys Bridge socket session.
    */
   static async setConnectionStatus(status: "connected" | "disconnected"): Promise<string> {
-    const [existing] = await db.select().from(whatsappConfig).limit(1);
-    if (existing) {
-      await db
-        .update(whatsappConfig)
-        .set({
-          status,
-          qrCodeUrl: status === "connected" ? null : existing.qrCodeUrl,
-          updatedAt: new Date(),
-        })
-        .where(eq(whatsappConfig.id, existing.id));
+    if (status === "disconnected") {
+      await this.disconnectSocket();
+      return "disconnected";
     }
-    return status;
+
+    if (!this.isSocketConnected()) {
+      if (!baileysSocket) this.initSocket();
+      // Aguarda a conexão abrir (ou QR para pareamento)
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 15000);
+        openWaiters.push(() => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    }
+
+    if (this.isSocketConnected()) {
+      await this.persistStatus("connected", null);
+      return "connected";
+    }
+
+    await this.persistStatus("pairing", baileysQrCode);
+    return "pairing";
+  }
+
+  static async disconnectSocket(): Promise<void> {
+    intentionalDisconnect = true;
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    if (baileysSocket) {
+      try {
+        await baileysSocket.end(new Error("manual_disconnect"));
+      } catch {
+        /* ignore */
+      }
+      baileysSocket = null;
+    }
+    socketConnectedAt = null;
+    baileysQrCode = null;
+    await this.persistStatus("disconnected", null);
   }
 
   /**
-   * Generates a real Baileys QR Code via makeWASocket (WebSockets integration).
+   * Generates a real Baileys QR Code via makeWASocket (WebSockets integration)
+   * with qrTimeout protection (60s).
    */
   static async generateQrCode(): Promise<{
     qrCodeUrl: string;
@@ -122,53 +388,42 @@ export class WhatsappService {
     status: string;
   }> {
     try {
-      const { state, saveCreds } = await useMultiFileAuthState(authDir);
+      await this.disconnectSocket();
+      intentionalDisconnect = false;
+      this.initSocket();
 
-      const sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        browser: ["PrintFlow ERP", "Chrome", "120.0"],
-        syncFullHistory: false,
-        retryRequestDelayMs: 100,
-      });
-
-      return new Promise((resolve) => {
-        sock.ev.on("connection.update", async (update) => {
-          const { qr } = update;
-          if (qr) {
-            baileysQrCode = qr;
-            baileysSocket = sock;
-
-            const qrCodeUrl = await QRCode.toDataURL(qr, {
-              errorCorrectionLevel: "H",
-              margin: 2,
-              width: 320,
-              color: { dark: "#0f172a", light: "#ffffff" },
-            });
-
-            const [existing] = await db.select().from(whatsappConfig).limit(1);
-            if (existing) {
-              await db
-                .update(whatsappConfig)
-                .set({
-                  status: "pairing",
-                  qrCodeUrl,
-                  updatedAt: new Date(),
-                })
-                .where(eq(whatsappConfig.id, existing.id));
-            }
-
-            resolve({
-              qrCodeUrl,
-              pairingCode: "BAILEYS_REAL_SOCKET",
-              status: "pairing",
-            });
+      return await new Promise((resolve) => {
+        let settled = false;
+        const finish = (result: { qrCodeUrl: string; pairingCode: string; status: string }) => {
+          if (!settled) {
+            settled = true;
+            resolve(result);
           }
-        });
+        };
 
-        sock.ev.on("creds.update", saveCreds);
+        const timeout = setTimeout(() => {
+          finish({ qrCodeUrl: "", pairingCode: "TIMEOUT", status: "timeout" });
+        }, 65000);
+
+        qrWaiters.push(async (qr: string) => {
+          clearTimeout(timeout);
+          const qrCodeUrl = await QRCode.toDataURL(qr, {
+            errorCorrectionLevel: "H",
+            margin: 2,
+            width: 320,
+            color: { dark: "#0f172a", light: "#ffffff" },
+          });
+
+          await this.persistStatus("pairing", qrCodeUrl);
+          finish({
+            qrCodeUrl,
+            pairingCode: "BAILEYS_REAL_SOCKET",
+            status: "pairing",
+          });
+        });
       });
     } catch (error) {
+      console.error("generateQrCode error:", error);
       return {
         qrCodeUrl: "",
         pairingCode: "ERROR",
@@ -197,6 +452,7 @@ export class WhatsappService {
 
   /**
    * Send WhatsApp message with anti-ban delay and presence ('composing') simulation.
+   * Envia de verdade pelo socket quando conectado; senão fica em fila ("queued").
    */
   static async sendMessageWithPresence(payload: {
     phone: string;
@@ -210,29 +466,70 @@ export class WhatsappService {
     message: string;
     timestamp: string;
     status: string;
+    error?: string;
   }> {
-    await this.antiBanDelay(1000, 2000);
+    const phone = String(payload.phone || "").trim();
+    const message = String(payload.message || "").trim();
+
+    if (!phone || !message) {
+      return {
+        success: false,
+        sentTo: phone,
+        message,
+        timestamp: new Date().toISOString(),
+        status: "failed",
+        error: "Telefone e mensagem são obrigatórios.",
+      };
+    }
+
+    // Anti-ban: verifica cotas antes de qualquer envio
+    const rateCheck = AntiBanEngine.checkRateLimit(phone);
+    if (!rateCheck.allowed) {
+      return {
+        success: false,
+        sentTo: phone,
+        message,
+        timestamp: new Date().toISOString(),
+        status: "rate_limited",
+        error: `Envio bloqueado pela proteção anti-ban (${rateCheck.reason}). ${
+          rateCheck.cooldownRemainingMs
+            ? `Aguarde ${Math.ceil(rateCheck.cooldownRemainingMs / 1000)}s antes de responder este contato novamente.`
+            : "Cota de mensagens atingida."
+        }`,
+      };
+    }
 
     const timeNow = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
+    let finalStatus: LiveChatMessage["status"] = "queued";
+
+    if (this.isSocketConnected()) {
+      // Anti-ban: delay humano entre 1.5s e 3.5s antes do envio
+      await this.antiBanDelay(1500, 3500);
+      const jid = `${phone.replace(/\D/g, "")}@s.whatsapp.net`;
+      const sent = await this.sendRawText(jid, message);
+      finalStatus = sent ? "delivered" : "failed";
+      if (sent) AntiBanEngine.recordSend(phone);
+    }
+
     const newMsg: LiveChatMessage = {
       id: `msg_${Date.now()}`,
-      contactPhone: payload.phone,
+      contactPhone: phone,
       contactName: payload.clientName || "Cliente WhatsApp",
       sender: payload.sender || "agent",
-      message: payload.message,
+      message,
       timestamp: timeNow,
-      status: "delivered",
+      status: finalStatus,
     };
 
     liveChatMessages.push(newMsg);
 
     return {
-      success: true,
-      sentTo: payload.phone,
-      message: payload.message,
+      success: finalStatus !== "failed",
+      sentTo: phone,
+      message,
       timestamp: new Date().toISOString(),
-      status: "delivered",
+      status: finalStatus,
     };
   }
 
@@ -261,7 +558,7 @@ export class WhatsappService {
         .replace(/\{\{codigo_pedido\}\}/g, orderCode)
         .replace(/\{\{link_aprovacao\}\}/g, `https://printflow.com.br/aprovar-arte/${orderCode}`);
 
-      await this.sendMessageWithPresence({
+      const result = await this.sendMessageWithPresence({
         phone,
         clientName,
         templateCode,
@@ -269,7 +566,7 @@ export class WhatsappService {
         sender: "bot",
       });
 
-      return true;
+      return result.success;
     } catch (err) {
       console.error("Error triggering Kanban WhatsApp message:", err);
       return false;
@@ -277,13 +574,15 @@ export class WhatsappService {
   }
 
   /**
-   * Process customer message through Bot engine with human takeover check.
+   * Process customer message through Bot engine with human takeover check,
+   * cooldown anti-spam e cotas anti-ban.
    */
-  static processBotQuery(phone: string, userTextRaw: string): {
+  static async processBotQuery(phone: string, userTextRaw: string): Promise<{
     botPaused: boolean;
     reply: string;
     timestamp: string;
-  } {
+    throttled: boolean;
+  }> {
     const isPaused = this.isBotPausedForContact(phone);
     const timeNow = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
@@ -303,7 +602,20 @@ export class WhatsappService {
         botPaused: true,
         reply: "Bot pausado para este contato (Atendente humano assumiu a conversa).",
         timestamp: timeNow,
+        throttled: true,
       };
+    }
+
+    // Anti-ban: cooldown de resposta automática por contato
+    const cooldownRemaining = AntiBanEngine.getAutoReplyCooldownRemaining(phone);
+    if (cooldownRemaining > 0) {
+      return { botPaused: false, reply: "", timestamp: timeNow, throttled: true };
+    }
+
+    // Anti-ban: cotas globais e por contato
+    const rateCheck = AntiBanEngine.checkRateLimit(phone);
+    if (!rateCheck.allowed) {
+      return { botPaused: false, reply: "", timestamp: timeNow, throttled: true };
     }
 
     const userText = userTextRaw.trim().toUpperCase();
@@ -321,16 +633,20 @@ export class WhatsappService {
       userText.startsWith("ORC") ||
       userText.startsWith("CUP")
     ) {
-      const orderCode = userText.length > 3 ? userText : "PV-0000101";
-      botReply = `🔍 *Status do Pedido ${orderCode}*\n\n• *Cliente:* Studio Design Ltda\n• *Status Produção:* 🖨️ Em Impressão Digital\n• *Situação Financeira:* ✅ PAGO\n• *Envio SuperFrete:* SF982310844BR (SEDEX)\n\nAcompanhe em tempo real em: https://printflow.com.br/rastreio/${orderCode}`;
+      botReply = await this.buildOrderStatusReply(userText);
     } else if (userText === "4") {
       this.toggleBotPauseForContact(phone, true);
       botReply =
         "👨‍💻 *Atendimento Humano*\n\nEntendi! Pausamos o robô automático e transferimos você para um de nossos atendentes humanos. Por favor aguarde um momento...";
     } else {
+      const [config] = await db.select().from(whatsappConfig).limit(1);
       botReply =
+        config?.botGreetingMsg ||
         "Olá! Bem-vindo à PrintFlow Gráfica Criativa. Como podemos te ajudar hoje?\n\n1️⃣ - Solicitar Novo Orçamento\n2️⃣ - Aprovação de Arte Digital\n3️⃣ - Consultar Status do Pedido\n4️⃣ - Falar com Atendente Humano";
     }
+
+    // Registra resposta automática no cooldown anti-ban
+    AntiBanEngine.recordAutoReply(phone);
 
     // Store bot reply in Live Chat
     liveChatMessages.push({
@@ -347,7 +663,37 @@ export class WhatsappService {
       botPaused: false,
       reply: botReply,
       timestamp: timeNow,
+      throttled: false,
     };
+  }
+
+  /**
+   * Consulta status REAL do pedido no banco (comando "3" do bot).
+   */
+  private static async buildOrderStatusReply(userText: string): Promise<string> {
+    const code = userText.trim();
+    if (code === "3") {
+      return "🔍 *Consulta de Status do Pedido*\n\nDigite o código do seu pedido (ex: *PV-0000101*) para consultar o status em tempo real.\n\nVocê encontra o código no e-mail, orçamento ou nota do pedido.";
+    }
+
+    try {
+      const [order] = await db
+        .select()
+        .from(quotesOrders)
+        .where(or(eq(quotesOrders.code, code), eq(quotesOrders.id, code)));
+
+      if (order) {
+        const statusLabel = STATUS_LABELS[order.status] || order.status.toUpperCase();
+        const payLabel = order.paymentStatus === "paid" ? "✅ PAGO" : "⏳ PENDENTE";
+        return `🔍 *Status do Pedido ${order.code}*\n\n• *Cliente:* ${order.clientName}\n• *Status Produção:* ${statusLabel}\n• *Situação Financeira:* ${payLabel}${
+          order.shippingTrackingCode ? `\n• *Envio:* ${order.shippingTrackingCode}` : ""
+        }\n\nAcompanhe em tempo real em: https://printflow.com.br/rastreio/${order.code}`;
+      }
+    } catch (error) {
+      console.error("buildOrderStatusReply error:", error);
+    }
+
+    return `🔍 *Pedido ${code} não encontrado*\n\nNão localizamos um pedido com esse código. Confira se digitou corretamente ou envie *3* para saber como consultar seu pedido.`;
   }
 
   /**

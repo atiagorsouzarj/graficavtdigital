@@ -20,9 +20,12 @@ export default function LogisticaPage() {
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [generatedLabel, setSavedLabel] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [lastSource, setLastSource] = useState<string>("");
 
   const handleCalculate = async () => {
     setLoading(true);
+    setErrorMsg("");
     try {
       const res = await fetch("/api/superfrete", {
         method: "POST",
@@ -30,9 +33,18 @@ export default function LogisticaPage() {
         body: JSON.stringify({ destinationZip: zip, weightKg: weight }),
       });
       const data = await res.json();
-      if (data.options) setOptions(data.options);
+      if (!res.ok) {
+        setOptions([]);
+        setErrorMsg(data.error || "Falha ao calcular o frete.");
+        return;
+      }
+      if (Array.isArray(data.options)) {
+        setOptions(data.options);
+        setLastSource(data.source || "");
+      }
     } catch (err) {
       console.error(err);
+      setErrorMsg("Erro de conexão com o serviço de frete.");
     } finally {
       setLoading(false);
     }
@@ -84,10 +96,22 @@ export default function LogisticaPage() {
           <button
             onClick={handleCalculate}
             disabled={loading}
-            className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+            className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer disabled:opacity-50"
           >
             {loading ? "Calculando SuperFrete..." : "Calcular Valores de Frete"}
           </button>
+
+          {errorMsg && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold">
+              ⚠ {errorMsg}
+            </div>
+          )}
+
+          {options.length > 0 && (
+            <div className="text-[10px] text-slate-500 font-medium">
+              {lastSource === "superfrete" ? "✅ Cotação real (API SuperFrete)" : "ℹ️ Cálculo simulado (defina SUPERFRETE_API_KEY para cotação real)"}
+            </div>
+          )}
 
           {options.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">

@@ -1,36 +1,65 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { apiKeys, clients, quotesOrders } from "@/db/schema";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * API Pública Externa v1 — protegida por API Key registrada na tabela api_keys.
+ * Toda requisição DEVE enviar o header X-API-Key (ou Authorization: Bearer).
+ */
+
+async function resolveApiKey(authHeader: string | null) {
+  if (!authHeader) return null;
+  const keyClean = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!keyClean) return null;
+
+  const [foundKey] = await db.select().from(apiKeys).where(eq(apiKeys.key, keyClean));
+  if (!foundKey || !foundKey.active) return null;
+
+  // Registra último uso da chave
+  try {
+    await db.update(apiKeys).set({ lastUsedAt: new Date() }).where(eq(apiKeys.id, foundKey.id));
+  } catch (error) {
+    console.error("apiKeys lastUsedAt update error:", error);
+  }
+
+  return foundKey;
+}
+
+function unauthorized(message: string) {
+  return NextResponse.json({ error: message }, { status: 401 });
+}
+
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get("x-api-key") || request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "API Key 'X-API-Key' ausente" }, { status: 401 });
-    }
-
-    const keyClean = authHeader.replace("Bearer ", "").trim();
-    const [foundKey] = await db.select().from(apiKeys).where(eq(apiKeys.key, keyClean));
-    
-    if (!foundKey && !keyClean.startsWith("gk_")) {
-      return NextResponse.json({ error: "Chave API inválida ou revogada" }, { status: 403 });
+    const authHeader =
+      request.headers.get("x-api-key") || request.headers.get("authorization");
+    const validKey = await resolveApiKey(authHeader);
+    if (!validKey) {
+      return unauthorized("API Key inválida, inativa ou ausente (envie o header X-API-Key).");
     }
 
     const { searchParams } = new URL(request.url);
-    const action = searchParams.get("action"); // 'voip_lookup' | 'list_orders' | 'list_clients'
+    const action = searchParams.get("action");
     const phone = searchParams.get("phone");
 
     // VoIP Telephony popup integration: lookup caller by phone number
-    if (action === "voip_lookup" || phone) {
-      const searchPhone = phone ? phone.replace(/\D/g, "") : "";
+    if (action === "voip_lookup") {
+      const searchPhone = (phone || "").replace(/\D/g, "");
+      if (searchPhone.length < 8) {
+        return NextResponse.json(
+          { error: "Parâmetro 'phone' é obrigatório (mínimo 8 dígitos)." },
+          { status: 400 }
+        );
+      }
+
       const clientList = await db.select().from(clients);
       const matched = clientList.filter((c) => {
         const p1 = (c.phone || "").replace(/\D/g, "");
         const p2 = (c.whatsapp || "").replace(/\D/g, "");
-        return p1.includes(searchPhone) || p2.includes(searchPhone);
+        return p1.endsWith(searchPhone) || p2.endsWith(searchPhone);
       });
 
       let activeOrders: unknown[] = [];
@@ -46,7 +75,10 @@ export async function GET(request: Request) {
         found: matched.length > 0,
         client: matched[0] || null,
         recentOrders: activeOrders,
-        message: matched.length > 0 ? `Cliente identificado: ${matched[0].name}` : "Número não cadastrado",
+        message:
+          matched.length > 0
+            ? `Cliente identificado: ${matched[0].name}`
+            : "Número não cadastrado",
       });
     }
 
@@ -77,12 +109,21 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const authHeader = request.headers.get("x-api-key") || request.headers.get("authorization");
-    if (!authHeader) {
-      return NextResponse.json({ error: "API Key 'X-API-Key' ausente" }, { status: 401 });
+    const authHeader =
+      request.headers.get("x-api-key") || request.headers.get("authorization");
+    const validKey = await resolveApiKey(authHeader);
+    if (!validKey) {
+      return unauthorized("API Key inválida, inativa ou ausente (envie o header X-API-Key).");
     }
 
-    const body = await request.json(); // External commercial automation trigger
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "JSON inválido no corpo da requisição." }, { status: 400 });
+    }
+
+    // External commercial automation trigger
     return NextResponse.json({
       success: true,
       event: body.event || "external_automation_trigger",

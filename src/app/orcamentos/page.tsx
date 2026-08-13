@@ -113,6 +113,7 @@ export default function OrcamentosPage() {
 
         {/* Orders Table */}
         <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+          <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 uppercase font-bold text-[10px] border-b border-slate-200">
               <tr>
@@ -162,6 +163,7 @@ export default function OrcamentosPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 

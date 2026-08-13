@@ -16,19 +16,26 @@ import {
 
 export default function QrCodePage() {
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
-  const [pairingCode, setPairingCode] = useState<string | null>("A82K-9128");
-  const [status, setStatus] = useState<string>("connected");
-  const [phone, setPhone] = useState<string>("+55 (21) 97886-9414");
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [status, setStatus] = useState<string>("disconnected");
+  const [phone, setPhone] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [authDir, setAuthDir] = useState<string>(".wh-auth/");
+  const [connected, setConnected] = useState<boolean>(false);
 
   const fetchStatus = async () => {
     try {
       const res = await fetch("/api/whatsapp");
+      if (!res.ok) return;
       const data = await res.json();
       if (data.config) {
-        setStatus(data.config.status || "connected");
-        setPhone(data.config.connectedPhone || "+55 (21) 97886-9414");
+        setStatus(data.config.status || "disconnected");
+        setPhone(data.config.connectedPhone || "");
         if (data.config.qrCodeUrl) setQrCodeUrl(data.config.qrCodeUrl);
+      }
+      if (data.socketInfo) {
+        setConnected(Boolean(data.socketInfo.connected));
+        setAuthDir(data.socketInfo.authDir || ".wh-auth/");
       }
     } catch (err) {
       console.error(err);
@@ -119,10 +126,13 @@ export default function QrCodePage() {
           {/* Connection Phone Info */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-1 max-w-md mx-auto">
             <p>
-              Telefone Ativo: <strong className="font-mono text-emerald-700 text-sm">{phone}</strong>
+              Telefone Ativo:{" "}
+              <strong className={`font-mono text-sm ${connected ? "text-emerald-700" : "text-slate-500"}`}>
+                {phone || "Nenhum pareamento registrado"}
+              </strong>
             </p>
-            <p className="text-[10px] text-slate-400 font-mono">
-              Sessão: baileys_sess_9918237912837 • Servidor Debian OK
+            <p className="text-[10px] text-slate-400 font-mono break-all">
+              Diretório de credenciais: {authDir}
             </p>
           </div>
 

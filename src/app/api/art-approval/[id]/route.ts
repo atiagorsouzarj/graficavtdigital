@@ -41,7 +41,22 @@ export async function POST(
   try {
     const { id } = await params;
     const cleanId = decodeURIComponent(id).trim();
-    const body = await request.json(); // { action: 'approve' | 'reject', reason?: string }
+
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "JSON inválido no corpo da requisição." }, { status: 400 });
+    }
+
+    // Valida a ação: apenas 'approve' ou 'reject'
+    const action = String(body.action || "");
+    if (action !== "approve" && action !== "reject") {
+      return NextResponse.json(
+        { error: "Ação inválida — use 'approve' ou 'reject'." },
+        { status: 400 }
+      );
+    }
 
     const [order] = await db
       .select()
@@ -52,16 +67,29 @@ export async function POST(
       return NextResponse.json({ error: "Pedido não encontrado" }, { status: 404 });
     }
 
-    const isApprove = body.action === "approve";
+    // Não permite aprovar/rejeitar depois que a arte já foi aprovada
+    if (action === "approve" && order.artApprovalStatus === "approved") {
+      return NextResponse.json(
+        { error: "A arte deste pedido já foi aprovada." },
+        { status: 409 }
+      );
+    }
+
+    const isApprove = action === "approve";
     const status = isApprove ? "approved" : "changes_requested";
     const kanbanStatus = isApprove ? "production_ready" : "art_pending";
+
+    let reason: string | null = null;
+    if (!isApprove) {
+      reason = String(body.reason || "Alteração solicitada pelo cliente").trim().slice(0, 500);
+    }
 
     const [updated] = await db
       .update(quotesOrders)
       .set({
         artApprovalStatus: status,
         status: kanbanStatus,
-        artRejectionReason: isApprove ? null : (body.reason || "Alteração solicitada pelo cliente"),
+        artRejectionReason: isApprove ? null : reason,
         artApprovedAt: isApprove ? new Date() : null,
         updatedAt: new Date(),
       })

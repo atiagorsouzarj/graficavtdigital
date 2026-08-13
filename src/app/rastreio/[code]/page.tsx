@@ -35,18 +35,43 @@ export default function PublicOrderTrackingPage({ params }: { params: Promise<{ 
   const { code } = use(params);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setNotFound(false);
+
     fetch(`/api/orders?q=${encodeURIComponent(code)}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error("Falha ao buscar pedido");
+        return r.json();
+      })
       .then((data) => {
+        if (cancelled) return;
         if (Array.isArray(data) && data.length > 0) {
-          const found = data.find((o: any) => o.code.toUpperCase() === code.toUpperCase()) || data[0];
+          const found =
+            data.find((o: any) => (o.code || "").toUpperCase() === code.toUpperCase()) || data[0];
           setOrder(found);
+        } else {
+          setOrder(null);
+          setNotFound(true);
         }
       })
-      .catch((e) => console.error(e))
-      .finally(() => setLoading(false));
+      .catch((e) => {
+        console.error(e);
+        if (!cancelled) {
+          setOrder(null);
+          setNotFound(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [code]);
 
   // 7-Stage Order Status Stepper Timeline matching user's request
@@ -92,6 +117,38 @@ export default function PublicOrderTrackingPage({ params }: { params: Promise<{ 
     );
   }
 
+  if (notFound || !order) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <div className="mx-auto p-4 bg-red-500/10 border border-red-500/40 rounded-2xl w-fit">
+            <Search className="w-8 h-8 text-red-400" />
+          </div>
+          <h1 className="text-lg font-black text-white">PEDIDO NÃO ENCONTRADO</h1>
+          <p className="text-sm text-slate-400">
+            Não localizamos nenhum pedido com o código{" "}
+            <span className="font-mono font-bold text-sky-400">{code}</span>. Verifique se o código
+            foi digitado corretamente ou entre em contato com a nossa equipe pelo WhatsApp.
+          </p>
+          <div className="pt-2 flex flex-col gap-2">
+            <a
+              href="/rastreio"
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl text-xs transition-colors"
+            >
+              Buscar outro pedido
+            </a>
+            <a
+              href="/"
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold rounded-xl text-xs transition-colors"
+            >
+              Voltar ao início
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans p-4 sm:p-8">
       {/* Header */}
@@ -120,9 +177,9 @@ export default function PublicOrderTrackingPage({ params }: { params: Promise<{ 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div>
               <span className="text-[10px] text-slate-400 uppercase font-bold block">Código do Pedido</span>
-              <span className="font-mono font-black text-2xl text-sky-400">{code}</span>
+              <span className="font-mono font-black text-2xl text-sky-400">{order.code}</span>
               <span className="text-xs text-slate-300 block font-bold mt-0.5">
-                Cliente: {order?.clientName || "Studio Design Ltda"}
+                Cliente: {order.clientName}
               </span>
             </div>
 
@@ -147,7 +204,7 @@ export default function PublicOrderTrackingPage({ params }: { params: Promise<{ 
                 <Truck className="w-4 h-4 text-sky-400" /> Modalidade de Entrega / Despacho
               </span>
               <span className="font-bold text-sky-400 uppercase">
-                {order?.shippingMethod || "SuperFrete SEDEX Express"}
+                {order.shippingMethod || "Retirada no Balcão"}
               </span>
             </div>
 

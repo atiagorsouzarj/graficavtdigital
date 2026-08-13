@@ -15,6 +15,15 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# SENSÍVEL: credenciais locais de banco
+.env
+
+# SENSÍVEL: autenticação WhatsApp Baileys (NUNCA versionar)
+.wh-auth/
+
+# Pacotes de deploy
+*.zip
+
 # OS files
 .DS_Store
 Thumbs.db

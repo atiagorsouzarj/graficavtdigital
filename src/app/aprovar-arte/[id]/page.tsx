@@ -22,9 +22,11 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
   const { id } = use(params);
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
   const [reason, setReason] = useState("");
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [actionDoneMsg, setActionDoneMsg] = useState("");
+  const [errorMsg, setErrorMsg] = useState("");
 
   const fetchDetail = async () => {
     try {
@@ -32,9 +34,15 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
       if (res.ok) {
         const data = await res.json();
         setOrder(data);
+        setNotFound(false);
+      } else {
+        setOrder(null);
+        setNotFound(true);
       }
     } catch (err) {
       console.error(err);
+      setOrder(null);
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -52,10 +60,18 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
         body: JSON.stringify({ action, reason }),
       });
       const data = await res.json();
+      if (!res.ok) {
+        setActionDoneMsg("");
+        setErrorMsg(data.error || "Não foi possível processar a sua solicitação.");
+        return;
+      }
+      setErrorMsg("");
       setActionDoneMsg(data.message);
       fetchDetail();
     } catch (err) {
       console.error(err);
+      setActionDoneMsg("");
+      setErrorMsg("Erro de conexão ao processar a solicitação.");
     }
   };
 
@@ -63,6 +79,29 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
     return (
       <div className="min-h-screen bg-slate-900 text-white flex items-center justify-center p-4">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-400" />
+      </div>
+    );
+  }
+
+  if (notFound || !order) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center font-sans p-4">
+        <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
+          <div className="mx-auto p-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl w-fit">
+            <AlertCircle className="w-8 h-8 text-amber-400" />
+          </div>
+          <h1 className="text-lg font-black text-white">PROVA DE ARTE NÃO ENCONTRADA</h1>
+          <p className="text-sm text-slate-400">
+            Não encontramos uma prova digital para o link acessado. Verifique o link enviado no
+            seu WhatsApp ou e-mail, ou fale com a nossa equipe de atendimento.
+          </p>
+          <a
+            href="/"
+            className="inline-block px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl text-xs transition-colors"
+          >
+            Voltar ao início
+          </a>
+        </div>
       </div>
     );
   }
@@ -82,7 +121,7 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
         </div>
         <div className="text-right">
           <span className="text-xs text-slate-400">Pedido</span>
-          <span className="font-mono font-bold text-sky-400 block text-sm">{order?.code || "PV-0000101"}</span>
+          <span className="font-mono font-bold text-sky-400 block text-sm">{order.code}</span>
         </div>
       </header>
 
@@ -94,12 +133,19 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
           </div>
         )}
 
+        {errorMsg && (
+          <div className="bg-red-950/80 border border-red-500/50 text-red-200 p-4 rounded-2xl flex items-center gap-3 text-sm font-semibold animate-in fade-in">
+            <AlertCircle className="w-6 h-6 text-red-400 shrink-0" />
+            <div>{errorMsg}</div>
+          </div>
+        )}
+
         {/* Artwork Visual Card */}
         <div className="bg-slate-900 rounded-3xl border border-slate-800 p-6 space-y-4 shadow-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
             <div>
               <h2 className="text-base font-bold text-white">
-                Cliente: {order?.clientName || "Studio Design Ltda"}
+                Cliente: {order.clientName}
               </h2>
               <p className="text-xs text-slate-400">
                 Verifique atentamente os textos, telefones, ortografia e margens de corte antes da aprovação.
@@ -136,7 +182,7 @@ export default function ClientArtApprovalPage({ params }: { params: Promise<{ id
           </div>
 
           {/* Action Buttons */}
-          {order?.artApprovalStatus !== "approved" && (
+          {order.artApprovalStatus !== "approved" && (
             <div className="pt-2 space-y-3">
               {!showRejectInput ? (
                 <div className="flex flex-col sm:flex-row gap-3">

@@ -3,13 +3,16 @@ import { db } from "@/db";
 import { whatsappConfig, communicationTemplates } from "@/db/schema";
 import { seedDatabase } from "@/db/seed";
 import { WhatsappService } from "@/lib/whatsappService";
+import { AntiBanEngine } from "@/lib/antiBanEngine";
 import { eq } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
+    // Idempotente: populou a base apenas no primeiro boot (retorna cedo se já houver dados)
     await seedDatabase();
+
     const [config] = await db.select().from(whatsappConfig).limit(1);
     const templates = await db
       .select()
@@ -20,7 +23,7 @@ export async function GET() {
 
     const defaultConfig = config || {
       instanceName: "Baileys Main Instance (Baileys v6.7.0)",
-      status: "connected",
+      status: "disconnected",
       connectedPhone: "+55 (21) 97886-9414",
       botEnabled: true,
       botGreetingMsg:
@@ -32,13 +35,8 @@ export async function GET() {
       config: defaultConfig,
       templates,
       liveChat: chatOverview,
-      socketInfo: {
-        engine: "Baileys WebSockets Bridge v6.7.0 (useMultiFileAuthState)",
-        batteryLevel: "98%",
-        uptime: "14 dias, 6 horas",
-        sessionToken: "baileys_sess_9918237912837",
-        authDir: ".wh-auth/",
-      },
+      socketInfo: WhatsappService.getSocketInfo(),
+      antiBan: AntiBanEngine.getStats(),
     });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
@@ -47,40 +45,64 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json(); // { action: 'generate_qr' | 'connect' | 'disconnect' | 'send_message' | 'bot_simulate' | 'pause_bot' | 'resume_bot' | 'update_config' }
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: "JSON inválido no corpo da requisição." }, { status: 400 });
+    }
+
+    const action = String(body.action || "");
 
     // 1. Generate Baileys QR Code
-    if (body.action === "generate_qr") {
+    if (action === "generate_qr") {
       const qrData = await WhatsappService.generateQrCode();
       return NextResponse.json(qrData);
     }
 
-    // 2. Connect / Disconnect Baileys Bridge
-    if (body.action === "connect" || body.action === "disconnect") {
-      const nextStatus = body.action === "connect" ? "connected" : "disconnected";
-      await WhatsappService.setConnectionStatus(nextStatus);
-      return NextResponse.json({ success: true, status: nextStatus });
+    // 2. Connect / Disconnect Baileys Bridge (socket real)
+    if (action === "connect" || action === "disconnect") {
+      const nextStatus = (body.action === "connect" ? "connected" : "disconnected") as
+        | "connected"
+        | "disconnected";
+      const status = await WhatsappService.setConnectionStatus(nextStatus);
+      return NextResponse.json({ success: true, status, socketInfo: WhatsappService.getSocketInfo() });
     }
 
     // 3. Send Message with Anti-Ban Delay & Presence
-    if (body.action === "send_message") {
+    if (action === "send_message") {
+      const phone = String(body.phone || "").trim();
+      const message = String(body.message || "").trim();
+
+      if (!phone || !message) {
+        return NextResponse.json(
+          { success: false, status: "failed", error: "Telefone (phone) e mensagem (message) são obrigatórios." },
+          { status: 400 }
+        );
+      }
+
       const result = await WhatsappService.sendMessageWithPresence({
-        phone: body.phone,
-        clientName: body.clientName,
-        templateCode: body.templateCode,
-        message: body.message,
-        sender: body.sender || "agent",
+        phone,
+        clientName: body.clientName ? String(body.clientName) : undefined,
+        templateCode: body.templateCode ? String(body.templateCode) : undefined,
+        message,
+        sender: (body.sender as "agent" | "bot") || "agent",
       });
-      return NextResponse.json(result);
+
+      return NextResponse.json(result, { status: result.success ? 200 : 429 });
     }
 
     // 4. Pause / Resume Bot for a Contact (Human Agent Takeover)
-    if (body.action === "pause_bot" || body.action === "resume_bot") {
-      const pause = body.action === "pause_bot";
-      const isPaused = WhatsappService.toggleBotPauseForContact(body.phone || "", pause);
+    if (action === "pause_bot" || action === "resume_bot") {
+      const phone = String(body.phone || "").trim();
+      if (!phone) {
+        return NextResponse.json({ error: "Telefone (phone) é obrigatório." }, { status: 400 });
+      }
+      const pause = action === "pause_bot";
+      const isPaused = WhatsappService.toggleBotPauseForContact(phone, pause);
       return NextResponse.json({
         success: true,
-        contactPhone: body.phone,
+        contactPhone: phone,
         botPaused: isPaused,
         message: isPaused
           ? "Bot de autoatendimento pausado. Atendente humano assumiu a conversa!"
@@ -89,29 +111,36 @@ export async function POST(request: Request) {
     }
 
     // 5. Bot Auto-Responder Simulation
-    if (body.action === "bot_simulate") {
-      const phone = body.phone || "(11) 98765-4321";
-      const result = WhatsappService.processBotQuery(phone, body.message || "");
+    if (action === "bot_simulate") {
+      const phone = String(body.phone || "(11) 98765-4321");
+      const message = String(body.message || "").trim();
+      if (!message) {
+        return NextResponse.json({ error: "Mensagem (message) é obrigatória." }, { status: 400 });
+      }
+      const result = await WhatsappService.processBotQuery(phone, message);
       return NextResponse.json({
         success: true,
-        userMessage: body.message,
+        userMessage: message,
         ...result,
       });
     }
 
     // 6. Update Configuration
-    if (body.action === "update_config") {
+    if (action === "update_config") {
       const [existing] = await db.select().from(whatsappConfig).limit(1);
       if (existing) {
         const [updated] = await db
           .update(whatsappConfig)
           .set({
-            instanceName: body.instanceName || existing.instanceName,
-            status: body.status !== undefined ? body.status : existing.status,
-            connectedPhone: body.connectedPhone !== undefined ? body.connectedPhone : existing.connectedPhone,
-            botEnabled: body.botEnabled !== undefined ? body.botEnabled : existing.botEnabled,
-            botGreetingMsg: body.botGreetingMsg !== undefined ? body.botGreetingMsg : existing.botGreetingMsg,
-            botSecurityToken: body.botSecurityToken !== undefined ? body.botSecurityToken : existing.botSecurityToken,
+            instanceName: body.instanceName !== undefined ? String(body.instanceName) : existing.instanceName,
+            status: body.status !== undefined ? String(body.status) : existing.status,
+            connectedPhone:
+              body.connectedPhone !== undefined ? String(body.connectedPhone) : existing.connectedPhone,
+            botEnabled: body.botEnabled !== undefined ? Boolean(body.botEnabled) : existing.botEnabled,
+            botGreetingMsg:
+              body.botGreetingMsg !== undefined ? String(body.botGreetingMsg) : existing.botGreetingMsg,
+            botSecurityToken:
+              body.botSecurityToken !== undefined ? String(body.botSecurityToken) : existing.botSecurityToken,
             updatedAt: new Date(),
           })
           .where(eq(whatsappConfig.id, existing.id))
@@ -120,7 +149,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: false, error: `Ação desconhecida: "${action}"` }, { status: 400 });
   } catch (error) {
     return NextResponse.json({ error: String(error) }, { status: 500 });
   }

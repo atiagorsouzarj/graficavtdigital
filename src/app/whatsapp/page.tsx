@@ -130,12 +130,29 @@ export default function WhatsappPage() {
   const [saveBotConfigSuccess, setSaveBotConfigSuccess] = useState(false);
   const [savingBotConfig, setSavingBotConfig] = useState(false);
 
-  const [socketMetrics] = useState({
-    batteryLevel: "98%",
-    latencyMs: "12ms",
-    uptime: "14 dias, 6 horas",
-    engine: "Baileys v6.7.0 WebSockets (Real Socket)",
-  });
+  const [socketInfo, setSocketInfo] = useState<{
+    connected: boolean;
+    connectedPhone?: string | null;
+    uptimeSeconds?: number;
+    engine?: string;
+    authDir?: string;
+  } | null>(null);
+
+  const formatUptime = (seconds: number): string => {
+    if (!seconds || seconds <= 0) return "desconectado";
+    if (seconds < 60) return `${seconds}s`;
+    const min = Math.floor(seconds / 60);
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60);
+    return `${h}h ${min % 60}min`;
+  };
+
+  const socketMetrics = {
+    batteryLevel: socketInfo?.connected ? "online" : "offline",
+    latencyMs: socketInfo?.connected ? "estável" : "—",
+    uptime: socketInfo ? formatUptime(socketInfo.uptimeSeconds || 0) : "carregando...",
+    engine: socketInfo?.engine || "Baileys v6.7.24 WebSockets (Real Socket)",
+  };
 
   const [qrCodeUrl, setQrCodeUrl] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
@@ -279,6 +296,9 @@ export default function WhatsappPage() {
       if (Array.isArray(data.templates)) {
         setTemplates(data.templates);
         if (data.templates.length > 0) setSelectedTemplate(data.templates[0]);
+      }
+      if (data.socketInfo) {
+        setSocketInfo(data.socketInfo);
       }
     } catch (err) {
       console.error(err);
