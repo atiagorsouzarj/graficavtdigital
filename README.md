@@ -1,5 +1,5 @@
-# PrintFlow ERP v2.8.0
-**Sistema de Gestão Integrado para Gráficas Rápidas + CRM + PDV + WhatsApp Baileys**
+# PrintFlow ERP v3.3.0
+**Sistema Completo: ERP + CRM + PDV + WhatsApp Bot + Client Portal + Admin Features**
 
 ---
 
@@ -234,6 +234,48 @@ git push origin main
 
 ---
 
+## 👥 Client Portal (v3.3.0)
+
+### Recursos para Clientes
+- **Login Seguro**: Autenticação OTP via SMS/Email
+- **Dashboard**: Histórico de pedidos e status
+- **Rastreio em Tempo Real**: Acompanhar processamento
+- **Aprovação de Arte**: Clientes aprovam designs
+- **Gabaritos**: Galeria de templates para pedidos
+- **Gerenciamento de Pedidos**: Download, cancelamento
+
+### Endpoints Cliente
+```bash
+# Autenticação
+POST /api/cliente/auth/request-otp
+POST /api/cliente/auth/verify-otp
+POST /api/cliente/auth/logout
+
+# Perfil
+GET /api/cliente/me
+
+# Pedidos
+GET /api/cliente/pedidos
+GET /api/cliente/pedidos/[id]
+POST /api/cliente/pedidos/[id]/aprovar-arte
+
+# Rastreio
+GET /api/cliente/rastreio/[code]
+```
+
+### Páginas Cliente
+```
+/cliente/login              - Login com OTP
+/cliente/verificar          - Verificação de código
+/cliente/dashboard          - Dashboard principal
+/cliente/pedidos            - Lista de pedidos
+/cliente/pedidos/[id]       - Detalhe do pedido
+/cliente/gabaritos          - Galeria de templates
+/cliente/arte/[id]          - Aprovação de arte
+```
+
+---
+
 ## 📱 WhatsApp Bot - Como Funciona
 
 ### Fluxo de Mensagens
@@ -339,11 +381,13 @@ pm2 monit
 ---
 
 ## 📞 Versão Atual
-- **v2.8.0** (2026-08-12)
-- Módulo de Comunicação Visual (m²)
-- WhatsApp Baileys Senior com Live Chat
-- CRM + PDV + Kanban integrados
-- Pricing engine para 6 tecnologias de impressão
+- **v3.3.0** (2026-08-13)
+- ✨ **NEW**: Client Portal (autenticação OTP, dashboard, tracking)
+- ✨ **NEW**: Template Gallery (Gabaritos)
+- ✨ **NEW**: Admin Portal Management
+- WhatsApp Baileys Senior + Live Chat
+- CRM + PDV + Kanban completos
+- 58 rotas API + 6 tecnologias de impressão
 
 ---
 
