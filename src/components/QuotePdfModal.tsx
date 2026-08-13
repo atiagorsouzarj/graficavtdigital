@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Printer, X, Download, FileText, Send, CheckSquare, Square, ShoppingBag } from "lucide-react";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
+import { printWithStyle, cleanupPrintStyles } from "@/lib/printStyles";
 import ThermalReceiptModal from "./ThermalReceiptModal";
 
 interface QuotePdfModalProps {
@@ -81,8 +82,32 @@ export default function QuotePdfModal({ order, onClose }: QuotePdfModalProps) {
   }, []);
 
   const handlePrintA4 = () => {
-    window.print();
+    // Aplica @page { size: A4 } dinamicamente para não conflitar com o cupom 80mm
+    printWithStyle({
+      pageSize: "A4",
+      margin: "10mm",
+      extraCss: `
+        .printable-area-a4 {
+          width: 100% !important;
+          max-width: 210mm !important;
+          margin: 0 auto !important;
+          padding: 8mm 10mm !important;
+          box-sizing: border-box !important;
+          font-size: 10pt !important;
+          line-height: 1.35 !important;
+        }
+        .printable-area-a4 button,
+        .printable-area-a4 input[type="checkbox"] {
+          display: none !important;
+        }
+      `,
+    });
   };
+
+  // Limpa qualquer style de impressão ao fechar
+  useEffect(() => {
+    return () => cleanupPrintStyles();
+  }, []);
 
   const subtotal = parseFloat(order.subtotalAmount || "0");
   const freight = parseFloat(order.freightAmount || "0");
@@ -92,7 +117,7 @@ export default function QuotePdfModal({ order, onClose }: QuotePdfModalProps) {
   const printTarget = typeof document !== "undefined" ? document.getElementById("print-root") : null;
 
   const printableContent = (
-    <div className="printable-area-a4 bg-white p-6 sm:p-8 border border-slate-200 rounded-2xl space-y-6 text-xs text-slate-800 select-text shadow-sm">
+    <div className="printable-area-a4 bg-white p-6 sm:p-8 border border-slate-200 rounded-2xl space-y-6 text-xs text-slate-800 select-text shadow-sm w-full">
       {/* Header: Company Name & Contact Info */}
       <div className="flex justify-between items-start border-b border-slate-200 pb-4">
         <div className="space-y-1">

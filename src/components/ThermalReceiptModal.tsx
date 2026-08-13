@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Printer, X } from "lucide-react";
+import { Printer, X, Download } from "lucide-react";
+import { printWithStyle, cleanupPrintStyles } from "@/lib/printStyles";
 
 interface ThermalReceiptModalProps {
   receipt: {
@@ -27,28 +28,48 @@ interface ThermalReceiptModalProps {
   onClose: () => void;
 }
 
+const PAPER_WIDTH_MM = 80; // impressora térmica padrão 80 colunas
+// Conversão mm → px (96 dpi): 1mm = 3.7795 px
+const PAPER_WIDTH_PX = Math.round(PAPER_WIDTH_MM * 3.7795); // ≈ 302px
+
+const formatBRL = (value: number | string) => {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (Number.isNaN(num)) return "0,00";
+  return num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+};
+
+const formatQty = (value: number) => {
+  return value.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+};
+
+// Preenche com espaços à esquerda para alinhar valores à direita (largura fixa)
+const padLeft = (str: string, width: number) => {
+  if (str.length >= width) return str.slice(0, width);
+  return " ".repeat(width - str.length) + str;
+};
+
+// Monta linha com label à esquerda e valor à direita dentro de uma largura fixa (em colunas)
+const makeRow = (label: string, value: string, totalCols: number) => {
+  const cols = Math.max(0, totalCols - value.length);
+  return label.length > cols ? label.slice(0, cols) + value : label + " ".repeat(cols - label.length) + value;
+};
+
+// Traço pontilhado de 42 caracteres (largura típica de cupom 80mm)
+const DASH = "-".repeat(42);
+const EQUAL = "=".repeat(42);
+
 export default function ThermalReceiptModal({ receipt, onClose }: ThermalReceiptModalProps) {
   const [mounted, setMounted] = useState(false);
-  const [companySettings, setCompanySettings] = useState<{
-    name: string;
-    address: string;
-    neighborhood: string;
-    cityUf: string;
-    cnpj: string;
-    phone1: string;
-    phone2: string;
-    email: string;
-    website: string;
-  }>({
+  const [companySettings, setCompanySettings] = useState({
     name: "VTDIGITAL ART STUDIO",
-    address: "RUA ARAQUEM 910",
+    address: "RUA ARAQUEM, 910",
     neighborhood: "BANGU",
     cityUf: "RIO DE JANEIRO - RJ",
     cnpj: "30.189.224/0001-54",
     phone1: "(21) 2038-3504",
     phone2: "(21) 97886-9414",
     email: "contato.vt@vtdigital.com",
-    website: "http://www.vtdigital.com.br",
+    website: "www.vtdigital.com.br",
   });
 
   useEffect(() => {
@@ -56,173 +77,217 @@ export default function ThermalReceiptModal({ receipt, onClose }: ThermalReceipt
     fetch("/api/settings")
       .then((res) => res.json())
       .then((data) => {
-        if (data.map) {
+        if (data && data.map) {
           const m = data.map;
-          setCompanySettings({
-            name: (m.company_name || m.company_trade_name || "VTDIGITAL ART STUDIO").toUpperCase(),
-            address: `${m.company_address || "RUA ARAQUEM"} ${m.company_number || "910"}`.toUpperCase(),
-            neighborhood: (m.company_neighborhood || "BANGU").toUpperCase(),
+          setCompanySettings((prev) => ({
+            name: (m.company_name || m.company_trade_name || prev.name).toUpperCase(),
+            address: `${m.company_address || "RUA ARAQUEM"}, ${m.company_number || "910"}`.toUpperCase(),
+            neighborhood: (m.company_neighborhood || prev.neighborhood).toUpperCase(),
             cityUf: `${m.company_city || "RIO DE JANEIRO"} - ${m.company_uf || "RJ"}`.toUpperCase(),
-            cnpj: m.company_cnpj || "30.189.224/0001-54",
-            phone1: m.company_phone || "(21) 2038-3504",
-            phone2: m.company_whatsapp || "(21) 97886-9414",
-            email: m.company_email || "contato.vt@vtdigital.com",
-            website: "http://www.vtdigital.com.br",
-          });
+            cnpj: m.company_cnpj || prev.cnpj,
+            phone1: m.company_phone || prev.phone1,
+            phone2: m.company_whatsapp || prev.phone2,
+            email: (m.company_email || prev.email).toLowerCase(),
+            website: (m.company_website || prev.website).replace(/^https?:\/\//, "").toLowerCase(),
+          }));
         }
       })
-      .catch((err) => console.error(err));
+      .catch(() => {
+        // mantém defaults
+      });
   }, []);
 
+  // Monta o texto monoespaçado do cupom (largura 42 colunas = ~80mm a 12cpi)
+  const receiptText = useMemo(() => {
+    const COLS = 42;
+    const lines: string[] = [];
+    const center = (s: string) => {
+      const pad = Math.max(0, Math.floor((COLS - s.length) / 2));
+      return " ".repeat(pad) + s.slice(0, COLS);
+    };
+
+    // Cabeçalho da empresa
+    lines.push(center(companySettings.name));
+    lines.push(center(companySettings.address));
+    lines.push(center(companySettings.neighborhood));
+    lines.push(makeRow(companySettings.cityUf, companySettings.cnpj, COLS));
+    lines.push(makeRow(companySettings.phone1, companySettings.phone2, COLS));
+    lines.push(center(companySettings.email));
+    lines.push(center(companySettings.website));
+    lines.push(DASH);
+
+    // Tipo e número do cupom
+    const cupomLine = `CUPOM NAO FISCAL  ${receipt.receiptNumber}`;
+    lines.push(center(cupomLine));
+    const dataHora = `Data: ${receipt.date}  Hora: ${receipt.time || "--:--"}`;
+    lines.push(center(dataHora));
+    lines.push(DASH);
+
+    // Cliente
+    lines.push("CLIENTE:");
+    lines.push(receipt.clientName.toUpperCase().slice(0, COLS));
+    if (receipt.clientDocument) {
+      lines.push(`CPF/CNPJ: ${receipt.clientDocument}`);
+    }
+    if (receipt.clientAddress) {
+      lines.push(receipt.clientAddress.toUpperCase().slice(0, COLS));
+    }
+    if (receipt.clientCityStateZip) {
+      lines.push(receipt.clientCityStateZip.toUpperCase().slice(0, COLS));
+    }
+    if (receipt.clientPhone) {
+      lines.push(receipt.clientPhone);
+    }
+    lines.push(DASH);
+
+    // Cabeçalho de itens (larguras fixas: 8 + 8 + 8 + 10 = 34 chars, padded com espaços)
+    lines.push("DESCRICAO DO PRODUTO");
+    //        0123456789012345678901234567890123456789 01
+    //        0         1         2         3         4
+    const colHeader = "   VALOR" + "     QTD" + "    DESC" + "     TOTAL";
+    lines.push(colHeader);
+    lines.push(DASH);
+
+    // Itens
+    let subtotalCalc = 0;
+    let totalDesc = 0;
+    receipt.items.forEach((it) => {
+      const itemDisc = it.discount || 0;
+      const itemTotal = it.qty * it.price - itemDisc;
+      subtotalCalc += it.qty * it.price;
+      totalDesc += itemDisc;
+      // Quebra nome do produto em linhas de 42 colunas
+      const nome = (it.name || "").toUpperCase();
+      for (let i = 0; i < nome.length; i += COLS) {
+        lines.push(nome.slice(i, i + COLS));
+      }
+      // Linha de valores: VALOR(8) + " "(2) + QTD(8) + " "(2) + DESC(8) + " "(2) + TOTAL(10) = 40 chars
+      const valor = formatBRL(it.price).padStart(8);
+      const qtd = formatQty(it.qty).padStart(8);
+      const desc = formatBRL(itemDisc).padStart(8);
+      const total = formatBRL(itemTotal).padStart(10);
+      lines.push(`   ${valor}  ${qtd}  ${desc}  ${total}`);
+      lines.push(""); // linha em branco entre itens
+    });
+
+    lines.push(DASH);
+    lines.push(EQUAL);
+
+    // Totais
+    const subtotalFinal = receipt.subtotal || subtotalCalc;
+    const descontoFinal = receipt.discount || totalDesc;
+    lines.push(makeRow("VALOR PRODUTOS", `R$ ${formatBRL(subtotalFinal)}`, COLS));
+    lines.push(makeRow("VALOR DESCONTO", `R$ ${formatBRL(descontoFinal)}`, COLS));
+    lines.push(EQUAL);
+    lines.push(makeRow("VALOR TOTAL", `R$ ${formatBRL(receipt.total)}`, COLS));
+    lines.push(EQUAL);
+
+    // Pagamento
+    const pago = receipt.receivedAmount
+      ? parseFloat(receipt.receivedAmount)
+      : parseFloat(receipt.total);
+    const troco = receipt.change ? parseFloat(receipt.change) : 0;
+    lines.push(makeRow("VALOR PAGO", `R$ ${formatBRL(pago)}`, COLS));
+    lines.push(makeRow("VALOR TROCO", `R$ ${formatBRL(troco)}`, COLS));
+    lines.push(DASH);
+
+    // Rodapé
+    lines.push(center("Agradecemos pela preferencia!"));
+    lines.push(center("Esperamos seu retorno em breve."));
+    lines.push(DASH);
+    lines.push(`Vendedor: ${receipt.sellerName || "TIAGO SOUZA"}`);
+    lines.push(`Situacao: Entrega direta ao cliente`);
+    lines.push(`Entrega: ${receipt.date} Hora: ${receipt.time || "--:--"}`);
+    const formaPgto =
+      receipt.paymentMethod === "cash"
+        ? "A VISTA"
+        : receipt.paymentMethod === "pix"
+        ? "PIX"
+        : receipt.paymentMethod === "card"
+        ? "CARTAO"
+        : (receipt.paymentMethod || "A VISTA").toUpperCase();
+    lines.push(`Pagamento: ${formaPgto}`);
+    lines.push(DASH);
+    if (receipt.notes) {
+      const notes = receipt.notes.toUpperCase();
+      for (let i = 0; i < notes.length; i += COLS) {
+        lines.push(notes.slice(i, i + COLS));
+      }
+      lines.push(DASH);
+    }
+    lines.push(center("--- FIM DO CUPOM ---"));
+
+    return lines.join("\n");
+  }, [receipt, companySettings]);
+
   const handlePrint = () => {
-    window.print();
+    // Aplica @page { size: 80mm } dinamicamente e imprime
+    printWithStyle({
+      pageSize: "80mm auto",
+      extraCss: `
+        .receipt-print-portal {
+          width: 80mm !important;
+          max-width: 80mm !important;
+          min-width: 80mm !important;
+          padding: 2mm !important;
+          font-size: 10pt !important;
+          line-height: 1.3 !important;
+        }
+      `,
+    });
   };
 
-  const formattedDate = receipt.date || new Date().toLocaleDateString("pt-BR");
-  const formattedTime = receipt.time || new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  // Limpa qualquer style de impressão ao fechar
+  useEffect(() => {
+    return () => cleanupPrintStyles();
+  }, []);
 
-  const fmtNum = (num: number) => num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtQty = (num: number) => num.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
-
-  const dashedLine = "---------------------------------------";
+  // Gera HTML standalone para download (opcional)
+  const handleDownload = () => {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Cupom ${receipt.receiptNumber}</title>
+<style>
+@page { size: 80mm auto; margin: 0; }
+body { width: 80mm; margin: 0; padding: 4mm; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.3; white-space: pre; }
+</style></head><body>${receiptText}</body></html>`;
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `cupom-${receipt.receiptNumber}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const printTarget = typeof document !== "undefined" ? document.getElementById("print-root") : null;
 
-  const receiptContent = (
-    <div className="printable-receipt-80mm bg-white p-4 text-black font-mono text-[10.5px] leading-snug space-y-1 select-text uppercase border border-slate-200 shadow-md w-full max-w-[290px] mx-auto rounded-lg my-1">
-      {/* Company Header matching Photo 2 */}
-      <div className="text-left font-bold space-y-0.5 pr-1">
-        <p className="text-[11.5px] font-black tracking-tight">{companySettings.name}</p>
-        <p>{companySettings.address}</p>
-        <div className="flex justify-between items-center">
-          <span>{companySettings.neighborhood}</span>
-          <span className="font-mono pr-1">{companySettings.phone1}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="truncate pr-1">{companySettings.email}</span>
-          <span className="font-mono shrink-0 pr-1">{companySettings.phone2}</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span>{companySettings.cityUf}</span>
-          <span className="font-mono pr-1">{companySettings.cnpj}</span>
-        </div>
-        <p className="lowercase font-semibold">{companySettings.website}</p>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Title */}
-      <div className="font-bold text-[10.5px] pr-1">
-        <p className="font-black">CUPOM NAO FISCAL {receipt.receiptNumber} {formattedTime} {formattedDate}</p>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Client Info matching Photo 2 */}
-      <div className="font-bold space-y-0.5 text-[10.5px] pr-1">
-        <p className="font-black">{receipt.clientName}</p>
-        <p>{receipt.clientAddress || "RUA LUZIA DE MACEDO DANTAS, 151"}</p>
-        <div className="flex justify-between items-center">
-          <span className="font-mono">{receipt.clientDocument || "172.595.737-08"}</span>
-          <span className="font-mono pr-1">{receipt.clientPhone || "(21) 99690-2449"}</span>
-        </div>
-        <p>{receipt.clientCityStateZip || "BANGU RIO DE JANEIRO - RJ CEP: 21863-090"}</p>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Items Table Header matching Photo 2 */}
-      <div className="font-bold text-[10.5px] pr-1">
-        <div className="flex justify-between">
-          <span>Descricao do Produto</span>
-          <span className="pr-1">UNI</span>
-        </div>
-        <div className="flex justify-between font-mono text-[9.5px] pt-0.5 font-bold">
-          <span className="w-11 text-left">valor</span>
-          <span className="w-13 text-center">Quantia</span>
-          <span className="w-13 text-center">Desconto</span>
-          <span className="w-15 text-right pr-1">Vlr Total</span>
-        </div>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Items List matching Photo 2 */}
-      <div className="space-y-1 font-bold text-[10.5px] pr-1">
-        {receipt.items.map((item, idx) => {
-          const itemDisc = item.discount || 0;
-          const itemTotal = item.qty * item.price - itemDisc;
-          return (
-            <div key={idx} className="space-y-0.5">
-              <div className="flex justify-between font-black">
-                <span className="truncate pr-1">{item.name}</span>
-                <span className="shrink-0 pr-1">UNI</span>
-              </div>
-              <div className="flex justify-between font-mono text-[9.5px] font-bold">
-                <span className="w-11 text-left">{fmtNum(item.price)}</span>
-                <span className="w-13 text-center">{fmtQty(item.qty)}</span>
-                <span className="w-13 text-center">{fmtNum(itemDisc)}</span>
-                <span className="w-15 text-right font-black pr-1">{fmtNum(itemTotal)}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Totals Section matching Photo 2 */}
-      <div className="space-y-0.5 font-bold text-[10.5px] pr-1">
-        <div className="flex justify-between">
-          <span>VALOR PRODUTOS</span>
-          <span className="font-mono font-black pr-1">R$ {fmtNum(receipt.subtotal)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>VALOR DESCONTO</span>
-          <span className="font-mono font-black pr-1">R$ {fmtNum(receipt.discount)}</span>
-        </div>
-        <div className="flex justify-between text-[11px] font-black pt-0.5">
-          <span>VALOR TOTAL</span>
-          <span className="font-mono pr-1">R$ {fmtNum(parseFloat(receipt.total))}</span>
-        </div>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Payment Section matching Photo 2 */}
-      <div className="space-y-0.5 font-bold text-[10.5px] pr-1">
-        <div className="flex justify-between">
-          <span>VALOR PAGO</span>
-          <span className="font-mono font-black pr-1">R$ {fmtNum(receipt.receivedAmount ? parseFloat(receipt.receivedAmount) : parseFloat(receipt.total))}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>VALOR TROCO</span>
-          <span className="font-mono font-black pr-1">R$ {fmtNum(receipt.change ? parseFloat(receipt.change) : 0)}</span>
-        </div>
-      </div>
-
-      <p className="font-mono text-[9.5px] tracking-tight text-slate-800">{dashedLine}</p>
-
-      {/* Footer Instructions matching Photo 2 */}
-      <div className="text-left space-y-1 font-bold text-[9.5px] leading-snug pr-1">
-        <p className="font-black">Agradecemos pela preferência, esperamos seu retorno em breve!</p>
-        <p>Vendedor: {receipt.sellerName || "TIAGO SOUZA"}</p>
-        <p>Situacao: Entrega direto para o cliente</p>
-        <p>Entrega: {formattedDate} Hora: {formattedTime}</p>
-        <p className="font-black">{receipt.paymentMethod === "cash" ? "AVISTA" : receipt.paymentMethod.toUpperCase()}</p>
-        <p className="pt-1 font-black">Informações / Anotações / Observações Geral</p>
-        <p className="pl-1 normal-case font-semibold italic">{receipt.notes || "Não deixe de aproveitar as nossas promoções!!!"}</p>
-      </div>
+  // Cupom formatado em CSS para visualização (largura fixa 80mm = 302px)
+  const receiptPaper = (
+    <div
+      className="receipt-paper bg-white text-black font-mono uppercase shadow-md select-text"
+      style={{
+        width: `${PAPER_WIDTH_PX}px`,
+        minWidth: `${PAPER_WIDTH_PX}px`,
+        maxWidth: `${PAPER_WIDTH_PX}px`,
+        padding: "12px 10px",
+        fontSize: "12px",
+        lineHeight: "1.35",
+        whiteSpace: "pre",
+        boxSizing: "border-box",
+        color: "#000",
+        background: "#fff",
+      }}
+    >
+      {receiptText}
     </div>
   );
 
   return (
     <>
-      {/* On-screen Modal View */}
+      {/* Modal na tela */}
       <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto no-print">
-        <div className="bg-white rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 relative my-auto animate-in zoom-in-95 duration-150 space-y-3">
-          
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 no-print">
+        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 relative my-auto animate-in zoom-in-95 duration-150 overflow-hidden">
+          {/* Cabeçalho do modal (acima do cupom) */}
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
             <span className="font-black text-xs text-slate-800 uppercase tracking-wide">
               IMPRIMIR CUPOM 80 COLUNAS
             </span>
@@ -234,17 +299,27 @@ export default function ThermalReceiptModal({ receipt, onClose }: ThermalReceipt
             </button>
           </div>
 
-          <div className="max-h-[68vh] overflow-y-auto p-3 border border-slate-200 rounded-2xl bg-slate-300/50 shadow-inner flex justify-center">
-            {receiptContent}
+          {/* Área do cupom: fundo cinza contrastando com o card branco, scroll interno */}
+          <div className="px-5 py-4 bg-slate-200/70 max-h-[70vh] overflow-y-auto flex justify-center">
+            {receiptPaper}
           </div>
 
-          <div className="pt-2 flex gap-2 no-print">
+          {/* Botões de ação (rodapé do card branco) */}
+          <div className="px-5 py-4 border-t border-slate-100 flex gap-2 bg-white">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer"
             >
               Fechar
+            </button>
+            <button
+              type="button"
+              onClick={handleDownload}
+              className="px-4 py-2.5 bg-slate-700 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+              title="Baixar cupom como HTML"
+            >
+              <Download className="w-4 h-4" /> HTML
             </button>
             <button
               type="button"
@@ -254,12 +329,39 @@ export default function ThermalReceiptModal({ receipt, onClose }: ThermalReceipt
               <Printer className="w-4 h-4" /> Imprimir 80mm
             </button>
           </div>
-
         </div>
       </div>
 
-      {/* Render directly to #print-root for 1:1 Thermal Printing */}
-      {mounted && printTarget ? createPortal(receiptContent, printTarget) : null}
+      {/* Portal para impressão: conteúdo isolado, largura 80mm exata */}
+      {mounted && printTarget
+        ? createPortal(
+            <div
+              className="receipt-print-portal"
+              style={{
+                width: `${PAPER_WIDTH_PX}px`,
+                minWidth: `${PAPER_WIDTH_PX}px`,
+                maxWidth: `${PAPER_WIDTH_PX}px`,
+                background: "#fff",
+                color: "#000",
+                fontFamily: "'Courier New', 'Consolas', monospace",
+                fontSize: "12px",
+                lineHeight: "1.35",
+                whiteSpace: "pre",
+                padding: "6mm 4mm",
+                boxSizing: "border-box",
+                margin: 0,
+                position: "static",
+                left: "auto",
+                top: "auto",
+                visibility: "visible",
+                display: "block",
+              }}
+            >
+              {receiptText}
+            </div>,
+            printTarget
+          )
+        : null}
     </>
   );
 }
