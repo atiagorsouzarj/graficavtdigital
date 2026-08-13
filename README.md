@@ -83,6 +83,35 @@ sock.ev.on('connection.update', (update) => {
 });
 ```
 
+### ⚠️ **AVISO CRÍTICO - PROGRAMADORES LEIA AGORA**
+
+**❌ NÃO MUDE O WHATSAPP SEM COMUNICAR AO LEAD DE DESENVOLVIMENTO**
+
+Se você mudar qualquer coisa no WhatsApp:
+1. **VOCÊ QUEBRA O SISTEMA** - O bot deixa de funcionar
+2. **VOCÊ NÃO PODE ENVIAR** para produção sem aprovação
+3. **SE MUDAR, DEVE ADAPTAR** exatamente para a forma que Claude desenvolveu:
+   - Usar `makeWASocket` (não QR code simulado)
+   - Implementar `useMultiFileAuthState` (autenticação em `.wh-auth/`)
+   - Adicionar `messages.upsert` listener (bot automático)
+   - Implementar `antiBanDelay` (1.5s-3.5s entre mensagens)
+   - Configurar `sendPresenceUpdate` (aparentar estar digitando)
+
+**Se você receber um PR/ZIP com WhatsApp mudado:**
+- Verificar SEMPRE com: `grep -c "makeWASocket" src/lib/whatsappService.ts`
+- Se retornar 0: **REJEITAR** o código
+- Se retornar 3+: **ACEITAR** e fazer deploy
+
+**O sistema vai verificar TODA vez que atualizar:**
+```bash
+# Este check é OBRIGATÓRIO antes de produção
+grep -c "makeWASocket" src/lib/whatsappService.ts
+# ✅ Deve retornar: 3 ou mais
+# ❌ Se retornar 0: FALHA CRÍTICA - NÃO ENVIAR PARA PRODUÇÃO
+```
+
+---
+
 ### Verificação
 Sempre verifique se o arquivo `src/lib/whatsappService.ts` contém:
 ```bash
