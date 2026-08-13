@@ -35,8 +35,19 @@ import {
   Key,
   Share2,
   ExternalLink,
+  Lock,
+  Database,
+  PlayCircle,
+  StopCircle,
+  Edit3,
+  Send,
+  Clock,
+  CheckCircle,
+  UserCog,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import ClientPortalSettings from "@/components/ClientPortalSettings";
+import GabaritosSettings from "@/components/GabaritosSettings";
 
 export default function ConfiguracoesPage() {
   const [activeTab, setActiveTab] = useState("empresa");
@@ -306,6 +317,8 @@ export default function ConfiguracoesPage() {
   const tabs = [
     { id: "empresa", label: "Empresa & Dados Fiscais", icon: Building, desc: "Razão social, CNPJ, endereço e logo" },
     { id: "public_area", label: "Portal & Redes Sociais", icon: Globe, desc: "Banners, Instagram, Whatsapp, Facebook, TikTok e Threads" },
+    { id: "client_portal", label: "Portal do Cliente", icon: UserCog, desc: "Login OTP, modo demo, e-mail, sessões" },
+    { id: "gabaritos", label: "Central de Gabaritos", icon: Layers, desc: "Modelos oficiais para download" },
     { id: "cv", label: "Comunicação Visual (m²)", icon: Maximize2, desc: "Preços de custo Banner e Adesivos" },
     { id: "dtf", label: "Tabela de Custos DTF", icon: Zap, desc: "Formato e custos fornecedor DTF" },
     { id: "whatsapp", label: "WhatsApp & Bot Baileys", icon: MessageSquare, desc: "Configuração do robô e chaves" },
@@ -1133,6 +1146,12 @@ export default function ConfiguracoesPage() {
                   </div>
                 </div>
               )}
+
+              {/* ABA: PORTAL DO CLIENTE */}
+              {activeTab === "client_portal" && <ClientPortalSettings />}
+
+              {/* ABA: GABARITOS */}
+              {activeTab === "gabaritos" && <GabaritosSettings />}
 
               {/* Bottom Sticky Save Action Bar */}
               <div className="sticky bottom-4 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl flex items-center justify-between border border-slate-800 z-30">

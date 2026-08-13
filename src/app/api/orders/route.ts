@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { quotesOrders, quoteOrderItems, financialTransactions, financialAccounts } from "@/db/schema";
 import { seedDatabase } from "@/db/seed";
 import { eq, desc, or, ilike } from "drizzle-orm";
+import { ensureOrderTokens } from "@/lib/orderTokens";
 
 export const dynamic = "force-dynamic";
 
@@ -128,7 +129,17 @@ export async function POST(request: Request) {
       });
     }
 
-    return NextResponse.json(order, { status: 201 });
+    // Gera tokens públicos automaticamente (arte + rastreio)
+    const tokens = await ensureOrderTokens(order.id);
+
+    return NextResponse.json(
+      {
+        ...order,
+        artApprovalToken: tokens.artApprovalToken,
+        trackingToken: tokens.trackingToken,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error POST order:", error);
     return NextResponse.json({ error: String(error) }, { status: 500 });

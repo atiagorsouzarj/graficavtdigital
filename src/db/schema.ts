@@ -205,8 +205,54 @@ export const quotesOrders = pgTable("quotes_orders", {
   internalTags: text("internal_tags"),
   operatorId: uuid("operator_id").references(() => users.id, { onDelete: "set null" }),
   operatorName: text("operator_name").default("Tiago Souza"),
+  // Single-use tokens for public access (sem login)
+  artApprovalToken: text("art_approval_token"),
+  artApprovalTokenExpiresAt: timestamp("art_approval_token_expires_at"),
+  trackingToken: text("tracking_token"),
+  trackingTokenExpiresAt: timestamp("tracking_token_expires_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// 8b. Client OTP - Códigos de acesso temporários (CPF + código por e-mail)
+export const clientOtps = pgTable("client_otps", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  codeHash: text("code_hash").notNull(),
+  channel: text("channel").notNull().default("email"),
+  attempts: integer("attempts").notNull().default(0),
+  blockedUntil: timestamp("blocked_until"),
+  usedAt: timestamp("used_at"),
+  expiresAt: timestamp("expires_at").notNull(),
+  ipAddress: text("ip_address"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 8c. Client Sessions - Sessões ativas dos clientes autenticados
+export const clientSessions = pgTable("client_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "cascade" }).notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  refreshExpiresAt: timestamp("refresh_expires_at").notNull(),
+  lastUsedAt: timestamp("last_used_at").defaultNow().notNull(),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 8d. Client Activity Log - Auditoria
+export const clientActivityLog = pgTable("client_activity_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
+  sessionId: uuid("session_id").references(() => clientSessions.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  resourceType: text("resource_type"),
+  resourceId: text("resource_id"),
+  details: text("details"),
+  ipAddress: text("ip_address"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // 9. Order Items
@@ -315,4 +361,26 @@ export const apiKeys = pgTable("api_keys", {
   active: boolean("active").default(true).notNull(),
   lastUsedAt: timestamp("last_used_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// 17. Gabaritos / Templates para Download (público no portal, gerenciado no /configuracoes)
+export const gabaritos = pgTable("gabaritos", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  code: text("code").notNull().unique(), // ex: "cartao-visita-cdr"
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull().default("outros"), // "cartao-visita", "banner", "adesivo", "sublimacao", "comunicacao-visual", "outros"
+  productType: text("product_type"), // opcional: vincula a um product
+  fileUrl: text("file_url").notNull(), // caminho ou URL
+  fileName: text("file_name").notNull(),
+  fileType: text("file_type").notNull(), // "pdf" | "cdr" | "ai" | "psd" | "jpg" | "png" | "svg"
+  fileSizeKb: integer("file_size_kb").default(0),
+  widthMm: integer("width_mm"), // dimensões físicas (opcional)
+  heightMm: integer("height_mm"),
+  bleedMm: integer("bleed_mm").default(3),
+  requiresAuth: boolean("requires_auth").default(false).notNull(), // se true, só cliente logado baixa
+  downloads: integer("downloads").default(0).notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

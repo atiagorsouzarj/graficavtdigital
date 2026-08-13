@@ -63,11 +63,19 @@ export default function CadastroObrigadoPage() {
           </a>
 
           <a
-            href="/"
+            href="/cliente/login?novo=1"
+            className="w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-extrabold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
+          >
+            <ArrowRight className="w-4 h-4" />
+            <span>Acessar Minha Área de Cliente</span>
+          </a>
+
+          <a
+            href="/portal"
             className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-2xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Home className="w-4 h-4" />
-            <span>Voltar à Página Principal</span>
+            <span>Voltar ao Portal</span>
           </a>
         </div>
       </div>

@@ -440,7 +440,9 @@ export default function QuotePdfModal({ order, onClose }: QuotePdfModalProps) {
             total: total.toFixed(2),
             paymentMethod: order.paymentMethod || "Pix",
             date: formatDateOnly(order.createdAt),
+            time: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
             notes: order.notes,
+            sellerName: undefined,
           }}
           onClose={() => setShowThermalReceipt(false)}
         />

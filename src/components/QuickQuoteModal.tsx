@@ -23,6 +23,7 @@ import { fetchAddressByCEP } from "@/lib/validation";
 
 interface QuickQuoteModalProps {
   onClose: () => void;
+  onCreated?: () => void;
 }
 
 interface Product {
@@ -50,7 +51,7 @@ interface ClientCRM {
   state?: string;
 }
 
-export default function QuickQuoteModal({ onClose }: QuickQuoteModalProps) {
+export default function QuickQuoteModal({ onClose, onCreated }: QuickQuoteModalProps) {
   // Client States
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientSearchQuery, setClientSearchQuery] = useState("");
@@ -214,6 +215,7 @@ export default function QuickQuoteModal({ onClose }: QuickQuoteModalProps) {
 
       if (res.ok) {
         setSavedSuccess(true);
+        if (onCreated) onCreated();
         if (sendType === "whatsapp") {
           alert(`Orçamento gerado e link enviado via WhatsApp para ${clientPhone || "Cliente"}!`);
         } else if (sendType === "email") {

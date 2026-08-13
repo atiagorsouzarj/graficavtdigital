@@ -1,17 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   Printer,
   Sparkles,
   UserPlus,
-  Palette,
   Truck,
   Download,
   MessageSquare,
-  ChevronRight,
-  PhoneCall,
-  Globe,
   ArrowRight,
   Search,
   CheckCircle2,
@@ -20,11 +17,12 @@ import {
   FileCheck,
   Share2,
   ExternalLink,
+  Lock,
+  User,
 } from "lucide-react";
 
 export default function PublicPortalPage() {
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [artCodeInput, setArtCodeInput] = useState("");
   const [trackCodeInput, setTrackCodeInput] = useState("");
 
   const [companySettings, setCompanySettings] = useState<Record<string, string>>({
@@ -57,7 +55,7 @@ export default function PublicPortalPage() {
       subtitle: "Aprovação de arte 100% digital diretamente no seu celular ou computador.",
       color: "from-purple-900 via-slate-900 to-indigo-950",
       cta: "Aprovar Arte",
-      link: "/aprovar-arte",
+      link: "/cliente/login?redirect=/cliente/pedidos",
     },
     {
       badge: "Atendimento Corporativo",
@@ -134,21 +132,40 @@ export default function PublicPortalPage() {
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-md">
-              <Printer className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <span className="font-black text-lg tracking-wider bg-gradient-to-r from-sky-400 to-indigo-300 bg-clip-text text-transparent">
-                VTDIGITAL
-              </span>
-              <span className="text-[10px] font-bold text-sky-400 block tracking-widest uppercase">
-                ART STUDIO & GRÁFICA RÁPIDA
-              </span>
-            </div>
+            <Link href="/portal" className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center shadow-md">
+                <Printer className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <span className="font-black text-lg tracking-wider bg-gradient-to-r from-sky-400 to-indigo-300 bg-clip-text text-transparent">
+                  VTDIGITAL
+                </span>
+                <span className="text-[10px] font-bold text-sky-400 block tracking-widest uppercase">
+                  Art Studio & Gráfica Rápida
+                </span>
+              </div>
+            </Link>
           </div>
 
           <div className="hidden md:flex items-center gap-4 text-xs text-slate-300 font-medium">
-            {/* Social Media Header Badges */}
+            <Link
+              href="/cliente/login"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-lg transition-colors"
+            >
+              <User className="w-3.5 h-3.5" />
+              <span>Sou Cliente</span>
+            </Link>
+
+            <Link
+              href="/cadastro-publico"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>Cadastrar</span>
+            </Link>
+
+            <span className="text-slate-700">|</span>
+
             <div className="flex items-center gap-1.5">
               {socialItems.map((soc) => (
                 <a
@@ -185,30 +202,47 @@ export default function PublicPortalPage() {
         </div>
       </header>
 
-      {/* Main 2-Column Hero Portal Layout */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1">
+        {/* Banner principal de login do cliente */}
+        <div className="mb-6 bg-gradient-to-r from-sky-600 to-indigo-700 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex flex-col sm:flex-row items-center gap-4">
+          <div className="flex-1">
+            <h2 className="text-lg sm:text-xl font-black">Já é nosso cliente?</h2>
+            <p className="text-xs sm:text-sm text-sky-100 mt-1">
+              Acompanhe seus pedidos, aprove artes digitais e gerencie pagamentos pela sua área exclusiva.
+            </p>
+          </div>
+          <Link
+            href="/cliente/login"
+            className="px-5 py-2.5 bg-white hover:bg-sky-50 text-sky-700 font-extrabold rounded-xl text-xs sm:text-sm shadow-md flex items-center gap-2 transition-all shrink-0"
+          >
+            <ArrowRight className="w-4 h-4" /> Entrar na Minha Conta
+          </Link>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
-          {/* LEFT COLUMN: Identity + Social Media Row + Promotional Carousel */}
+          {/* LEFT: Identidade + Redes + Banner */}
           <div className="lg:col-span-6 space-y-6">
             <div className="space-y-3">
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">
                 <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                Portal de Autoatendimento do Cliente
+                Bem-vindo à Gráfica
               </span>
               <h1 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight">
                 Sua Gráfica Rápida, Brindes & Comunicação Visual em um só lugar.
               </h1>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Acesse o menu de autoatendimento para aprovar artes virtuais, acompanhar o rastreio da produção do seu pedido em tempo real, enviar cadastro ou baixar gabaritos oficiais.
+                Atendemos empresas e pessoas físicas com impressão digital,
+                sublimação, DTF, comunicação visual, brindes personalizados e
+                papelaria comercial. Cadastre-se, peça seu orçamento e
+                acompanhe tudo pelo portal.
               </p>
             </div>
 
-            {/* Social Media Channels Row */}
+            {/* Redes sociais */}
             <div className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
-                  <Share2 className="w-3.5 h-3.5 text-sky-600" /> NOSSOS CANAIS & REDES SOCIAIS OFICIAIS
+                  <Share2 className="w-3.5 h-3.5 text-sky-600" /> NOSSOS CANAIS & REDES SOCIAIS
                 </span>
                 <span className="text-[10px] text-slate-400 font-semibold">Siga a Gráfica</span>
               </div>
@@ -240,7 +274,7 @@ export default function PublicPortalPage() {
               </div>
             </div>
 
-            {/* Rotating Banner Card */}
+            {/* Banner rotativo */}
             <div className={`rounded-3xl p-6 sm:p-8 bg-gradient-to-br ${banners[bannerIndex].color} text-white shadow-xl relative overflow-hidden transition-all duration-500 min-h-[240px] flex flex-col justify-between`}>
               <div className="space-y-2 z-10">
                 <span className="bg-white/10 backdrop-blur-md border border-white/20 text-sky-200 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider">
@@ -267,17 +301,17 @@ export default function PublicPortalPage() {
                   ))}
                 </div>
 
-                <a
+                <Link
                   href={banners[bannerIndex].link}
                   className="px-4 py-2 bg-white hover:bg-sky-50 text-slate-900 font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-md transition-all"
                 >
                   <span>{banners[bannerIndex].cta}</span>
                   <ArrowRight className="w-3.5 h-3.5 text-sky-600" />
-                </a>
+                </Link>
               </div>
             </div>
 
-            {/* Guarantee / Features Badge Row */}
+            {/* Trust badges */}
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="p-3 bg-white rounded-2xl border border-slate-200 shadow-2xs">
                 <ShieldCheck className="w-5 h-5 text-sky-600 mx-auto mb-1" />
@@ -297,133 +331,79 @@ export default function PublicPortalPage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: Interactive Autoatendimento Menu */}
+          {/* RIGHT: Atalhos rápidos (visitantes) */}
           <div className="lg:col-span-6 space-y-4">
             <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xl space-y-5">
               <div className="border-b border-slate-100 pb-3">
                 <h2 className="text-lg font-extrabold text-slate-900 flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-sky-600" />
-                  Menu de Autoatendimento do Cliente
+                  <Sparkles className="w-5 h-5 text-sky-600" />
+                  Atalhos Rápidos
                 </h2>
                 <p className="text-xs text-slate-500">
-                  Selecione uma das opções abaixo para interagir com a gráfica rápida:
+                  Você não precisa de login para usar estas opções.
                 </p>
               </div>
 
               <div className="space-y-3">
-                
-                {/* 1. Novo Cadastro (PF / PJ) */}
-                <a
-                  href="/cadastro-publico"
-                  className="p-4 bg-slate-50 hover:bg-sky-50/60 border border-slate-200 hover:border-sky-300 rounded-2xl transition-all flex items-center justify-between group cursor-pointer"
-                >
+                {/* Rastrear pedido (com token) */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
-                      <UserPlus className="w-5 h-5" />
+                    <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                      <Truck className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-sky-700">
-                        Novo Cadastro do Cliente (PF / PJ)
-                      </h3>
+                      <h3 className="text-sm font-bold text-slate-900">Rastrear Pedido (Visitante)</h3>
                       <p className="text-xs text-slate-500">
-                        Envie seus dados, endereço de entrega e solicite orçamentos exclusivos.
+                        Cole o link enviado pela gráfica (com código do pedido).
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-sky-600 group-hover:translate-x-1 transition-all shrink-0" />
-                </a>
-
-                {/* 2. Aprovação de Arte Digital com Input Direto */}
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <Palette className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Aprovação de Arte Digital
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Digite o código da sua prova visual ou acesse a lista completa.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
                   <div className="flex gap-2 pt-1">
                     <input
                       type="text"
-                      placeholder="Ex: ORD-1002"
-                      value={artCodeInput}
-                      onChange={(e) => setArtCodeInput(e.target.value)}
-                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-hidden font-mono uppercase"
-                    />
-                    <a
-                      href={artCodeInput ? `/aprovar-arte/${artCodeInput}` : "/aprovar-arte"}
-                      className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-colors cursor-pointer shrink-0"
-                    >
-                      <Search className="w-3.5 h-3.5" />
-                      <span>Abrir Prova</span>
-                    </a>
-                  </div>
-                </div>
-
-                {/* 3. Rastreio de Pedido em Tempo Real com Input Direto */}
-                <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                        <Truck className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-900">
-                          Rastreio de Pedido em Tempo Real
-                        </h3>
-                        <p className="text-xs text-slate-500">
-                          Acompanhe as 7 etapas da linha de produção do seu material.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <input
-                      type="text"
-                      placeholder="Ex: TRK-9874"
                       value={trackCodeInput}
                       onChange={(e) => setTrackCodeInput(e.target.value)}
-                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-hidden font-mono uppercase"
+                      placeholder="Cole o link completo ou código do pedido"
+                      className="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs focus:ring-2 focus:ring-purple-500 focus:outline-hidden font-mono"
                     />
-                    <a
-                      href={trackCodeInput ? `/rastreio/${trackCodeInput}` : "/rastreio"}
+                    <Link
+                      href={
+                        trackCodeInput.startsWith("http")
+                          ? trackCodeInput
+                          : trackCodeInput
+                          ? `/rastreio/${encodeURIComponent(trackCodeInput)}`
+                          : "/rastreio"
+                      }
                       className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-colors cursor-pointer shrink-0"
                     >
                       <Search className="w-3.5 h-3.5" />
                       <span>Rastrear</span>
-                    </a>
+                    </Link>
                   </div>
                 </div>
 
-                {/* 4. Gabaritos & Moldes Grátis */}
-                <div className="p-4 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 rounded-2xl transition-all flex items-center justify-between group cursor-pointer">
+                {/* Central de Gabaritos */}
+                <Link
+                  href="/cliente/gabaritos"
+                  className="p-4 bg-slate-50 hover:bg-indigo-50/60 border border-slate-200 hover:border-indigo-300 rounded-2xl transition-all flex items-center justify-between group cursor-pointer"
+                >
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm group-hover:scale-105 transition-transform">
                       <Download className="w-5 h-5" />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-slate-900 group-hover:text-indigo-700">
-                        Central de Download de Gabaritos
+                        Central de Gabaritos
                       </h3>
                       <p className="text-xs text-slate-500">
-                        Baixe modelos em PDF, CorelDRAW, Illustrator e Photoshop com Sangria.
+                        Baixe modelos em PDF, CorelDRAW, AI e PSD com sangria.
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all shrink-0" />
-                </div>
+                  <ArrowRight className="w-5 h-5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-1 transition-all shrink-0" />
+                </Link>
 
-                {/* 5. WhatsApp com Atendente Humanizado */}
+                {/* WhatsApp */}
                 <a
                   href={companySettings.social_whatsapp_url || "https://wa.me/5521978869414?text=Olá!%20Vim%20pelo%20Portal%20da%20Gráfica%20e%20preciso%20de%20atendimento."}
                   target="_blank"
@@ -439,21 +419,39 @@ export default function PublicPortalPage() {
                         Falar no WhatsApp com Atendente
                       </h3>
                       <p className="text-xs text-emerald-700">
-                        Tire dúvidas, envie arquivos grandes e solicite orçamento direto com a equipe.
+                        Tire dúvidas, envie arquivos grandes e solicite orçamento.
                       </p>
                     </div>
                   </div>
-                  <ChevronRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-all shrink-0" />
+                  <ArrowRight className="w-5 h-5 text-emerald-600 group-hover:translate-x-1 transition-all shrink-0" />
                 </a>
-
               </div>
+
+              {/* Divisor */}
+              <div className="flex items-center gap-2 pt-2">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[10px] text-slate-400 uppercase font-bold">Áreas com login</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+
+              <Link
+                href="/cliente/login"
+                className="block p-3 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-2xl transition-all"
+              >
+                <div className="flex items-center gap-3">
+                  <Lock className="w-5 h-5 text-sky-700 shrink-0" />
+                  <div className="flex-1">
+                    <h3 className="text-xs font-bold text-sky-900">Acompanhar meus pedidos com login</h3>
+                    <p className="text-[10px] text-sky-700">Acesse suas artes, pagamentos e histórico completo</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-sky-600" />
+                </div>
+              </Link>
             </div>
           </div>
-
         </div>
       </main>
 
-      {/* Footer */}
       <footer className="bg-slate-900 text-slate-400 text-xs border-t border-slate-800 py-6 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -463,10 +461,10 @@ export default function PublicPortalPage() {
           </div>
 
           <div className="flex items-center gap-4 text-slate-400">
-            <a href="/portal" className="hover:text-white transition-colors">Portal</a>
-            <a href="/cadastro-publico" className="hover:text-white transition-colors">Novo Cadastro</a>
-            <a href="/aprovar-arte" className="hover:text-white transition-colors">Provas Digitais</a>
-            <a href="/rastreio" className="hover:text-white transition-colors">Rastreio</a>
+            <Link href="/portal" className="hover:text-white transition-colors">Portal</Link>
+            <Link href="/cadastro-publico" className="hover:text-white transition-colors">Novo Cadastro</Link>
+            <Link href="/cliente/login" className="hover:text-white transition-colors">Sou Cliente</Link>
+            <Link href="/cliente/gabaritos" className="hover:text-white transition-colors">Gabaritos</Link>
           </div>
         </div>
       </footer>

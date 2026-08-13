@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { quotesOrders, quoteOrderItems, financialTransactions, financialAccounts } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { ensureOrderTokens } from "@/lib/orderTokens";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,16 @@ export async function PUT(
         status: "paid",
         paymentMethod: updated.paymentMethod || "PDV",
         orderId: updated.id,
+      });
+    }
+
+    // Regenera tokens se o pedido voltar a precisar (ex: art_approval de novo)
+    if (updated.status === "art_approval" || updated.status === "art_pending") {
+      const tokens = await ensureOrderTokens(updated.id);
+      return NextResponse.json({
+        ...updated,
+        artApprovalToken: tokens.artApprovalToken,
+        trackingToken: tokens.trackingToken,
       });
     }
 

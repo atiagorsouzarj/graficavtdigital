@@ -87,8 +87,9 @@ export default function ThermalReceiptModal({ receipt, onClose }: ThermalReceipt
             cnpj: m.company_cnpj || prev.cnpj,
             phone1: m.company_phone || prev.phone1,
             phone2: m.company_whatsapp || prev.phone2,
+            // Email e site não levam upperCase (são identificadores únicos)
             email: (m.company_email || prev.email).toLowerCase(),
-            website: (m.company_website || prev.website).replace(/^https?:\/\//, "").toLowerCase(),
+            website: (m.company_website || prev.website).replace(/^https?:\/\/(www\.)?/i, "").toLowerCase(),
           }));
         }
       })
@@ -263,7 +264,7 @@ body { width: 80mm; margin: 0; padding: 4mm; font-family: 'Courier New', monospa
   // Cupom formatado em CSS para visualização (largura fixa 80mm = 302px)
   const receiptPaper = (
     <div
-      className="receipt-paper bg-white text-black font-mono uppercase shadow-md select-text"
+      className="receipt-paper text-black font-mono uppercase select-text"
       style={{
         width: `${PAPER_WIDTH_PX}px`,
         minWidth: `${PAPER_WIDTH_PX}px`,
@@ -275,6 +276,7 @@ body { width: 80mm; margin: 0; padding: 4mm; font-family: 'Courier New', monospa
         boxSizing: "border-box",
         color: "#000",
         background: "#fff",
+        boxShadow: "0 0 0 1px #e2e8f0",
       }}
     >
       {receiptText}
@@ -284,10 +286,10 @@ body { width: 80mm; margin: 0; padding: 4mm; font-family: 'Courier New', monospa
   return (
     <>
       {/* Modal na tela */}
-      <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto no-print">
-        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 relative my-auto animate-in zoom-in-95 duration-150 overflow-hidden">
+      <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-xs z-50 flex items-center justify-center p-3 sm:p-5 no-print">
+        <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 relative my-auto animate-in zoom-in-95 duration-150 overflow-hidden flex flex-col max-h-[95vh]">
           {/* Cabeçalho do modal (acima do cupom) */}
-          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+          <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 shrink-0">
             <span className="font-black text-xs text-slate-800 uppercase tracking-wide">
               IMPRIMIR CUPOM 80 COLUNAS
             </span>
@@ -299,13 +301,13 @@ body { width: 80mm; margin: 0; padding: 4mm; font-family: 'Courier New', monospa
             </button>
           </div>
 
-          {/* Área do cupom: fundo cinza contrastando com o card branco, scroll interno */}
-          <div className="px-5 py-4 bg-slate-200/70 max-h-[70vh] overflow-y-auto flex justify-center">
+          {/* Área do cupom: card branco envolvendo 100% do cupom (sem fundo cinza vazando) */}
+          <div className="px-5 py-5 bg-white flex justify-center overflow-y-auto flex-1 min-h-0">
             {receiptPaper}
           </div>
 
           {/* Botões de ação (rodapé do card branco) */}
-          <div className="px-5 py-4 border-t border-slate-100 flex gap-2 bg-white">
+          <div className="px-5 py-4 border-t border-slate-100 flex gap-2 bg-white shrink-0">
             <button
               type="button"
               onClick={onClose}
