@@ -27,6 +27,8 @@ import {
   Printer,
   Maximize2,
   Image as ImageIcon,
+  ShieldAlert,
+  ArrowRight,
 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 import {
@@ -100,10 +102,8 @@ export default function ProdutosPage() {
   ]);
 
   const [activeCategoryTab, setActiveCategoryTab] = useState("grafica_rapida");
-  const [dtfSubTab, setDtfSubTab] = useState<"dtf_uv" | "dtf_textil">("dtf_uv");
-  const [cvSubTab, setCvSubTab] = useState<"banner" | "adesivo">("banner");
 
-  // View state: 'grid' | 'detail' | 'dtf_calc' | 'cv_calc'
+  // Main Mode: 'grid' (BOM Products) | 'dtf_calc' (DTF Services) | 'cv_calc' (Banner & Sticker m²) | 'detail' (Product BOM Editor)
   const [viewMode, setViewMode] = useState<"grid" | "detail" | "dtf_calc" | "cv_calc">("grid");
   const [activeProduct, setActivePrinterProduct] = useState<ProductRecord | null>(null);
 
@@ -112,7 +112,7 @@ export default function ProdutosPage() {
     DEFAULT_PRODUCT_COMPOSITIONS.cartao_visita
   );
 
-  // Selected Machine for active product (can be empty / "none")
+  // Selected Machine for active product
   const [selectedPrinterId, setSelectedPrinterId] = useState<string>("");
 
   // DTF Service Calculator State
@@ -121,24 +121,7 @@ export default function ProdutosPage() {
   const [dtfFreight, setDtfFreight] = useState("10.00");
   const [dtfMargin, setDtfMargin] = useState("40.00");
 
-  // Comunicação Visual (m²) Calculator State
-  const [cvType, setCvType] = useState<"banner" | "adesivo">("banner");
-  const [bannerWidth, setBannerWidth] = useState("1.20");
-  const [bannerHeight, setBannerHeight] = useState("0.90");
-  const [bannerPriceM2, setBannerPriceM2] = useState("35.00");
-  const [bannerMinPrice, setBannerMinPrice] = useState("26.00");
-  const [bannerFreight, setBannerFreight] = useState("10.00");
-  const [bannerMargin, setBannerMargin] = useState("40.00");
-
-  const [stickerWidthCm, setStickerWidthCm] = useState("6.0");
-  const [stickerHeightCm, setStickerHeightCm] = useState("6.0");
-  const [stickerGapMm, setStickerGapMm] = useState("3.0");
-  const [stickerPriceM2, setStickerPriceM2] = useState("40.00");
-  const [stickerQty, setStickerQty] = useState("100");
-  const [stickerFreight, setStickerFreight] = useState("10.00");
-  const [stickerMargin, setStickerMargin] = useState("50.00");
-
-  // Supplier Base Prices Table for DTF Formats (Editable)
+  // DTF Supplier Prices
   const [dtfSupplierPrices, setDtfSupplierPrices] = useState({
     a4_uv: { label: "A4 (28 × 19 cm)", cost: 49.0 },
     a3_uv: { label: "A3 (28 × 40 cm)", cost: 79.0 },
@@ -148,39 +131,57 @@ export default function ProdutosPage() {
     metro_textil: { label: "Metro (38 × 100 cm)", cost: 84.9 },
   });
 
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  // Visual Communication (Banner / Sticker) Calculator State
+  const [cvType, setCvType] = useState<"banner" | "sticker">("banner");
+  const [bannerWidth, setBannerWidth] = useState("1.20");
+  const [bannerHeight, setBannerHeight] = useState("0.90");
+  const [bannerPriceM2, setBannerPriceM2] = useState("35.00");
+  const [bannerMinPrice, setBannerMinPrice] = useState("26.00");
+  const [bannerFreight, setBannerFreight] = useState("10.00");
+  const [bannerMargin, setBannerMargin] = useState("40.00");
 
-  // Modal for new category
+  // Sticker State
+  const [stickerWidthCm, setStickerWidthCm] = useState("6.0");
+  const [stickerHeightCm, setStickerHeightCm] = useState("6.0");
+  const [stickerGapMm, setStickerGapMm] = useState("3.0");
+  const [stickerPriceM2, setStickerPriceM2] = useState("40.00");
+  const [stickerQty, setStickerQty] = useState("100");
+  const [stickerFreight, setStickerFreight] = useState("10.00");
+  const [stickerMargin, setStickerMargin] = useState("50.00");
+
+  // Modals
+  const [showNewModal, setShowNewModal] = useState(false);
   const [showNewCategoryModal, setShowNewCategoryModal] = useState(false);
   const [newCatName, setNewCatName] = useState("");
-
-  // Modal for new product
-  const [showNewModal, setShowNewModal] = useState(false);
   const [newProdName, setNewProdName] = useState("");
   const [newProdCode, setNewProdCode] = useState("");
   const [newProdCategory, setNewProdCategory] = useState("grafica_rapida");
-  const [newProdPreset, setNewProdCategoryPreset] = useState("cartao_visita");
+  const [newProdPreset, setNewProdPreset] = useState("cartao_visita");
 
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Load Products, Printers and Materials from API
   const loadAllProducts = async () => {
     try {
-      const [resProd, resPrint, resMat, resSet] = await Promise.all([
+      const [prodsRes, printersRes, matRes, settingsRes] = await Promise.all([
         fetch("/api/products"),
         fetch("/api/printers"),
         fetch("/api/materials"),
         fetch("/api/settings"),
       ]);
-      const dataProd = await resProd.json();
-      const dataPrint = await resPrint.json();
-      const dataMat = await resMat.json();
-      const dataSet = await resSet.json();
 
-      if (Array.isArray(dataProd)) setProductsList(dataProd);
-      if (dataPrint.printers) setPrintersList(dataPrint.printers);
-      if (Array.isArray(dataMat)) setMaterialsList(dataMat);
+      const prodsData = await prodsRes.json();
+      const printersData = await printersRes.json();
+      const matData = await matRes.json();
+      const settingsData = await settingsRes.json();
 
-      if (dataSet.map) {
-        const m = dataSet.map;
+      if (Array.isArray(prodsData)) setProductsList(prodsData);
+      if (Array.isArray(printersData)) setPrintersList(printersData);
+      if (Array.isArray(matData)) setMaterialsList(matData);
+
+      if (settingsData.map) {
+        const m = settingsData.map;
         if (m.cv_banner_price_m2) setBannerPriceM2(m.cv_banner_price_m2);
         if (m.cv_banner_min_price_under_1m2) setBannerMinPrice(m.cv_banner_min_price_under_1m2);
         if (m.cv_adesivo_price_m2) setStickerPriceM2(m.cv_adesivo_price_m2);
@@ -189,14 +190,14 @@ export default function ProdutosPage() {
           try {
             const parsed = JSON.parse(m.dtf_supplier_prices);
             const mapObj: any = {};
-            if (parsed.dtf_uv) {
-              parsed.dtf_uv.forEach((i: any) => {
-                mapObj[i.id] = { label: i.name, cost: i.cost };
+            if (Array.isArray(parsed.dtf_uv)) {
+              parsed.dtf_uv.forEach((item: any) => {
+                mapObj[item.id] = { label: item.name, cost: item.cost };
               });
             }
-            if (parsed.dtf_textil) {
-              parsed.dtf_textil.forEach((i: any) => {
-                mapObj[i.id] = { label: i.name, cost: i.cost };
+            if (Array.isArray(parsed.dtf_textil)) {
+              parsed.dtf_textil.forEach((item: any) => {
+                mapObj[item.id] = { label: item.name, cost: item.cost };
               });
             }
             setDtfSupplierPrices((prev) => ({ ...prev, ...mapObj }));
@@ -248,7 +249,7 @@ export default function ProdutosPage() {
   const activeMachine = printersList.find((p) => p.id === selectedPrinterId);
   const activeMachineCost = activeMachine ? parseFloat(activeMachine.fixedCostPerImp || "0.00") : 0.00;
 
-  // Live DTF Calculation (Venda Direta)
+  // Live DTF Calculation
   const selectedDtfFormat = (dtfSupplierPrices as any)[dtfFormatKey] || dtfSupplierPrices.metro_uv;
   const dtfBaseCost = selectedDtfFormat.cost;
   const dtfFreightNum = parseFloat(dtfFreight || "0");
@@ -258,7 +259,7 @@ export default function ProdutosPage() {
   const dtfFinalPrice = dtfDivisor > 0.05 ? dtfTotalCost / dtfDivisor : dtfTotalCost * 2;
   const dtfProfit = dtfFinalPrice - dtfTotalCost;
 
-  // Live Banner Calculation (< 1m2 minimum charge rule)
+  // Live Banner Calculation
   const bannerCalcRes: BannerCalculationResult = calculateBannerPricing({
     widthMeters: parseFloat(bannerWidth || "1.2"),
     heightMeters: parseFloat(bannerHeight || "0.9"),
@@ -270,7 +271,7 @@ export default function ProdutosPage() {
     cardTaxPercent: 3.16,
   });
 
-  // Live Sticker Calculation (m2 yield)
+  // Live Sticker Calculation
   const stickerCalcRes: StickerM2Result = calculateStickerM2Pricing({
     stickerWidthCm: parseFloat(stickerWidthCm || "6.0"),
     stickerHeightCm: parseFloat(stickerHeightCm || "6.0"),
@@ -282,6 +283,9 @@ export default function ProdutosPage() {
     taxPercent: 6.0,
     cardTaxPercent: 3.16,
   });
+
+  // Pure Margin vs Complete Price Simulator Values
+  const pureMarginPrice = calc.costWithLoss / (1 - compositionData.targetMarginPercent / 100);
 
   // Component change handlers
   const handleComponentChange = (
@@ -301,7 +305,6 @@ export default function ProdutosPage() {
     }
   };
 
-  // Picker handler: when selecting a material from the registered Materials & Insumos list
   const handleSelectMaterialForComponent = (idx: number, matId: string) => {
     const selectedMat = materialsList.find((m) => m.id === matId);
     if (selectedMat) {
@@ -523,47 +526,72 @@ export default function ProdutosPage() {
 
   return (
     <MainLayout>
+      
+      {/* TOP 3 MAIN MODES SWITCHER BAR */}
+      <div className="bg-slate-900 text-white p-2 rounded-2xl border border-slate-800 shadow-md flex flex-wrap items-center justify-between gap-2 text-xs font-extrabold mb-5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setViewMode("grid")}
+            className={`px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              viewMode === "grid" || viewMode === "detail"
+                ? "bg-sky-600 text-white shadow-md"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            <Boxes className="w-4 h-4 text-sky-300" />
+            <span>1. Produtos Tradicionais & Papelaria (BOM)</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode("dtf_calc")}
+            className={`px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              viewMode === "dtf_calc"
+                ? "bg-purple-600 text-white shadow-md"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            <Zap className="w-4 h-4 text-amber-300" />
+            <span>2. Serviços DTF (UV & Têxtil)</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode("cv_calc")}
+            className={`px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+              viewMode === "cv_calc"
+                ? "bg-emerald-600 text-white shadow-md"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            <Maximize2 className="w-4 h-4 text-amber-300" />
+            <span>3. Comunicação Visual (Banners & Adesivos m²)</span>
+          </button>
+        </div>
+
+        <button
+          onClick={() => setShowNewModal(true)}
+          className="px-4 py-2 bg-white text-slate-950 hover:bg-sky-50 font-black rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+        >
+          <Plus className="w-4 h-4 text-sky-600" />
+          <span>Cadastrar Produto</span>
+        </button>
+      </div>
+
       {viewMode === "grid" ? (
         /* ================= VIEW 1: CATEGORIES & PRODUCTS GRID ================= */
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[11px] font-extrabold uppercase text-sky-600 tracking-wider">
-                CATÁLOGO & FORMATAÇÃO DE PREÇOS
+                CATÁLOGO DE PRODUTOS
               </span>
               <h1 className="text-2xl font-bold text-slate-800">Produtos & Fichas Técnicas (BOM)</h1>
               <p className="text-xs text-slate-500">
                 Aprovação de custos de materiais + clique de máquinas + margem de erro + impostos e taxa de cartão.
               </p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-              <button
-                onClick={() => setViewMode("cv_calc")}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-extrabold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Maximize2 className="w-4 h-4 text-amber-300" />
-                <span>Precificação Comunicação Visual (m²)</span>
-              </button>
-
-              <button
-                onClick={() => setViewMode("dtf_calc")}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-extrabold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Zap className="w-4 h-4 text-amber-300" />
-                <span>Precificação Serviço DTF</span>
-              </button>
-
-              <button
-                onClick={() => setShowNewModal(true)}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 cursor-pointer transition-colors"
-              >
-                <Plus className="w-4 h-4" /> Cadastrar Novo Produto
-              </button>
-            </div>
           </div>
 
-          {/* Product Category Tabs Bar matching requested Diagram */}
+          {/* Product Category Tabs Bar */}
           <div className="bg-white p-2 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2 text-xs font-bold">
             <div className="flex flex-wrap items-center gap-1">
               {categoriesList.map((cat) => (
@@ -637,7 +665,6 @@ export default function ProdutosPage() {
                           </div>
 
                           <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
-                            {/* Selected Printer & Impression Cost */}
                             <div className="flex items-center justify-between font-bold text-[11px] text-sky-800 border-b border-slate-200 pb-1">
                               <span className="flex items-center gap-1">
                                 <Printer className="w-3.5 h-3.5 text-sky-600" />
@@ -648,41 +675,40 @@ export default function ProdutosPage() {
                               </span>
                             </div>
 
-                            <div className="flex justify-between">
-                              <span className="text-slate-500">Custo Base Composição:</span>
-                              <span className="font-mono font-bold text-slate-800">
-                                R$ {baseCost.toFixed(4)}
-                              </span>
+                            <div className="flex justify-between text-slate-500">
+                              <span>Custo Base Insumos:</span>
+                              <span className="font-mono font-bold text-slate-800">{formatCurrency(baseCost)}</span>
                             </div>
-
-                            <div className="flex justify-between text-[11px] text-emerald-700 font-bold">
-                              <span>Margem Lucro:</span>
-                              <span>{p.targetMarginPercent}%</span>
+                            <div className="flex justify-between text-slate-500">
+                              <span>Perda Conservadora:</span>
+                              <span className="font-mono text-slate-700">{p.lossMarginPercent || "5"}%</span>
+                            </div>
+                            <div className="flex justify-between text-slate-500">
+                              <span>Margem Alvo Bruta:</span>
+                              <span className="font-mono text-emerald-600 font-bold">{p.targetMarginPercent || "60"}%</span>
                             </div>
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between">
-                            <span className="text-[10px] text-slate-400">Preço de Venda ({salesUnit}):</span>
-                            <span className="text-lg font-black text-emerald-400 font-mono">
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block uppercase">PREÇO SUGERIDO</span>
+                            <span className="text-base font-black text-sky-700 font-mono">
                               {formatCurrency(finalPrice)}
                             </span>
                           </div>
 
-                          <div className="flex gap-2">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleOpenDetail(p)}
-                              className="flex-1 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs rounded-xl flex items-center gap-1 transition-colors cursor-pointer"
                             >
-                              <Settings className="w-4 h-4" />
-                              <span>Editar Ficha Técnica</span>
+                              <Sliders className="w-3.5 h-3.5" /> Editar BOM
                             </button>
-
                             <button
                               onClick={() => handleDeleteProduct(p.id, p.name)}
-                              className="p-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl cursor-pointer transition-colors"
-                              title="Excluir Produto do Catálogo"
+                              className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                              title="Excluir produto"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -696,659 +722,326 @@ export default function ProdutosPage() {
             );
           })()}
         </div>
-      ) : viewMode === "cv_calc" ? (
-        /* ================= VIEW 4: COMUNICAÇÃO VISUAL (BANNERS & ADESIVOS m²) CALCULATOR ================= */
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
+      ) : viewMode === "detail" && activeProduct ? (
+        /* ================= VIEW 2: PRODUCT BOM COMPOSITION & MARGIN COMPARATOR ================= */
+        <div className="space-y-6">
+          <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+            <div className="flex items-center gap-3">
               <button
                 onClick={handleBackToGrid}
-                className="text-xs text-sky-600 font-bold hover:underline flex items-center gap-1 mb-1 cursor-pointer"
+                className="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-700 font-bold text-xs flex items-center gap-1 cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" /> Voltar para Catálogo de Produtos
+                <ArrowLeft className="w-4 h-4" /> Voltar
               </button>
-              <span className="text-[11px] font-extrabold uppercase text-sky-700 tracking-wider block">
-                CÁLCULO DE COMUNICAÇÃO VISUAL (METRO QUADRADO m²)
-              </span>
-              <h1 className="text-2xl font-black text-slate-800">
-                Calculadora de Banners & Adesivos Vinil (m²)
-              </h1>
+              <div>
+                <span className="font-mono text-xs font-bold text-sky-700">{activeProduct.code}</span>
+                <h1 className="text-xl font-extrabold text-slate-900">{activeProduct.name}</h1>
+              </div>
             </div>
 
             <button
-              onClick={handleSaveCvProduct}
+              onClick={handleSaveProduct}
               disabled={saving}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition-colors"
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-colors cursor-pointer flex items-center gap-1.5"
             >
-              <Save className="w-4 h-4" />
-              <span>{saving ? "Salvando..." : "SALVAR PRODUTO EM m²"}</span>
+              <Save className="w-4 h-4" /> {saving ? "Salvando..." : "Salvar Ficha Técnica"}
             </button>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xl space-y-6 text-xs text-slate-800">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                <span className="font-extrabold text-slate-800 uppercase text-xs block border-b border-slate-200 pb-2">
-                  1. DIMENSÕES E REGRA DO BANNER
+          {saveSuccess && (
+            <div className="p-3.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              <span>Ficha Técnica e Precificação atualizadas e salvas no banco de dados!</span>
+            </div>
+          )}
+
+          {/* MARGIN COMPARATOR (Margem Pura vs Margem Completa com Impostos) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-sky-50 p-4 rounded-2xl border border-sky-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-sky-900 text-xs uppercase flex items-center gap-1.5">
+                  <Percent className="w-4 h-4 text-sky-600" /> Preço com Margem Pura ({compositionData.targetMarginPercent}%)
                 </span>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Largura (Metros)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={bannerWidth}
-                      onChange={(e) => setBannerWidth(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold font-mono text-slate-800 outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-bold text-slate-700 block mb-1">Altura (Metros)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={bannerHeight}
-                      onChange={(e) => setBannerHeight(e.target.value)}
-                      className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold font-mono text-slate-800 outline-hidden"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 space-y-1 text-[11px]">
-                  <span className="font-bold block">Área do Banner: {bannerCalcRes.areaM2} m²</span>
-                  {bannerCalcRes.isUnder1M2 ? (
-                    <p className="text-amber-800 font-semibold">
-                      ⚠️ Área menor que 1,0m²! Aplicando regra da trava de custo mínimo fixo: <strong>R$ {bannerMinPrice}</strong>.
-                    </p>
-                  ) : (
-                    <p className="text-emerald-800 font-semibold">
-                      ✓ Área &ge; 1,0m²! Multiplicando área pela tabela do fornecedor (R$ {bannerPriceM2}/m²).
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                <span className="font-extrabold text-slate-800 uppercase text-xs block border-b border-slate-200 pb-2">
-                  2. CUSTO E MARGEM
+                <span className="bg-sky-200 text-sky-900 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  Sem Deducão de Imposto
                 </span>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Frete de Chegada (R$):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={bannerFreight}
-                    onChange={(e) => setBannerFreight(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-slate-800 outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Margem de Lucro (%):</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={bannerMargin}
-                    onChange={(e) => setBannerMargin(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-emerald-700 outline-hidden"
-                  />
-                </div>
               </div>
+              <p className="text-2xl font-black text-sky-900 font-mono">
+                {formatCurrency(pureMarginPrice)}
+              </p>
+              <p className="text-[11px] text-sky-800 font-medium">
+                Fórmula: <code className="font-mono">Custo / (1 - Margem)</code> • Lucro Bruto: {formatCurrency(pureMarginPrice - calc.costWithLoss)}
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-200">
-              <div className="p-4 bg-slate-100 rounded-2xl border border-slate-300 text-center space-y-1">
-                <span className="text-[10px] font-extrabold text-slate-500 uppercase block">CUSTO TOTAL (Lona+Frete)</span>
-                <div className="text-xl font-black text-slate-800 font-mono">
-                  {formatCurrency(bannerCalcRes.totalCostWithFreight)}
-                </div>
+            <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-emerald-900 text-xs uppercase flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-emerald-600" /> Preço Sugerido Completo (Com Imposto 6% + Cartão 3,16%)
+                </span>
+                <span className="bg-emerald-200 text-emerald-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  Recomendado
+                </span>
               </div>
+              <p className="text-2xl font-black text-emerald-900 font-mono">
+                {formatCurrency(calc.suggestedPrice)}
+              </p>
+              <p className="text-[11px] text-emerald-800 font-medium">
+                Garante o Lucro Líquido exato de {compositionData.targetMarginPercent}% mesmo após pagar impostos e taxas.
+              </p>
+            </div>
+          </div>
 
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-300 text-center space-y-1">
-                <span className="text-[10px] font-extrabold text-emerald-700 uppercase block">LUCRO REAL (R$)</span>
-                <div className="text-xl font-black text-emerald-600 font-mono">
-                  {formatCurrency(bannerCalcRes.profitAmount)}
-                </div>
-              </div>
+          {/* BOM Components Table */}
+          <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 shadow-2xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-sky-600" /> Composição de Insumos & Cliques
+              </h3>
 
-              <div className="p-4 bg-sky-600 text-white rounded-2xl text-center space-y-1 shadow-md">
-                <span className="text-[10px] font-extrabold text-sky-200 uppercase block">PREÇO FINAL DO BANNER</span>
-                <div className="text-2xl font-black text-white font-mono">
-                  {formatCurrency(bannerCalcRes.suggestedPrice)}
+              <button
+                type="button"
+                onClick={handleAddComponent}
+                className="px-3.5 py-1.5 bg-sky-600 text-white font-bold text-xs rounded-xl flex items-center gap-1.5 hover:bg-sky-700 cursor-pointer shadow-xs"
+              >
+                <Plus className="w-4 h-4" /> + Adicionar Componente
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {compositionData.components.map((comp, idx) => (
+                <div
+                  key={comp.id || idx}
+                  className="p-3 bg-slate-50 rounded-2xl border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-3 items-center"
+                >
+                  <div className="sm:col-span-4">
+                    <label className="text-[9px] text-slate-400 font-bold block">Insumo Cadastrado</label>
+                    <select
+                      onChange={(e) => handleSelectMaterialForComponent(idx, e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 font-bold text-slate-800 text-xs"
+                    >
+                      <option value="">-- Escolha um Material --</option>
+                      {materialsList.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.code}) — {formatCurrency(m.costPrice)}/{m.consumptionUnit}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="text-[9px] text-slate-400 font-bold block">Nome do Componente</label>
+                    <input
+                      type="text"
+                      value={comp.name}
+                      onChange={(e) => handleComponentChange(idx, "name", e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 font-bold text-slate-800 text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-[9px] text-slate-400 font-bold block">Qtd Consumida</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={comp.quantityConsumed}
+                      onChange={(e) => handleComponentChange(idx, "quantityConsumed", e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 font-mono font-bold text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="text-[9px] text-slate-400 font-bold block">Custo Un (R$)</label>
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={comp.unitCost}
+                      onChange={(e) => handleComponentChange(idx, "unitCost", e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-lg p-1.5 font-mono font-bold text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-1 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveComponent(idx)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 cursor-pointer rounded-lg"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         </div>
       ) : viewMode === "dtf_calc" ? (
-        /* ================= VIEW 3: DYNAMIC DTF PRICING CALCULATOR ================= */
-        <div className="space-y-6 max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <button
-                onClick={handleBackToGrid}
-                className="text-xs text-sky-600 font-bold hover:underline flex items-center gap-1 mb-1 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" /> Voltar para Catálogo de Produtos
-              </button>
-              <span className="text-[11px] font-extrabold uppercase text-purple-700 tracking-wider block">
-                CÁLCULO E PRECIFICAÇÃO DE SERVIÇOS DTF (UV & TÊXTIL)
+        /* ================= VIEW 3: DTF SERVICES CALCULATOR ================= */
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-3xl mx-auto">
+          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-extrabold text-purple-600 uppercase tracking-wider block">
+                CALCULADORA DE SERVIÇOS DTF
               </span>
-              <h1 className="text-2xl font-black text-slate-800">
-                Calculadora de Impressão DTF
-              </h1>
+              <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <Zap className="w-5 h-5 text-purple-600" />
+                Precificação de Impressão DTF (UV & Têxtil)
+              </h2>
             </div>
-
             <button
               onClick={handleSaveDtfProduct}
               disabled={saving}
-              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer transition-colors"
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
             >
-              <Save className="w-4 h-4" />
-              <span>{saving ? "Salvando..." : "SALVAR PRODUTO DTF"}</span>
+              <Save className="w-4 h-4" /> Salvar no Catálogo
             </button>
           </div>
 
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-xl space-y-6 text-xs text-slate-800">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                <span className="font-extrabold text-slate-800 uppercase text-xs block border-b border-slate-200 pb-2">
-                  1. OPÇÃO DE DTF
-                </span>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-2">Tipo de Impressão:</label>
-                  <div className="flex gap-4 font-bold">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="dtfType"
-                        checked={dtfType === "dtf_uv"}
-                        onChange={() => {
-                          setDtfType("dtf_uv");
-                          setDtfFormatKey("metro_uv");
-                        }}
-                        className="text-purple-600 focus:ring-purple-500 cursor-pointer"
-                      />
-                      <span>(•) DTF UV</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="dtfType"
-                        checked={dtfType === "dtf_textil"}
-                        onChange={() => {
-                          setDtfType("dtf_textil");
-                          setDtfFormatKey("metro_textil");
-                        }}
-                        className="text-purple-600 focus:ring-purple-500 cursor-pointer"
-                      />
-                      <span>( ) DTF Têxtil</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Formato / Tamanho:</label>
-                  <select
-                    value={dtfFormatKey}
-                    onChange={(e) => setDtfFormatKey(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-purple-500"
-                  >
-                    {dtfType === "dtf_uv" ? (
-                      <>
-                        <option value="metro_uv">Metro (28 × 100 cm) — R$ 99,00</option>
-                        <option value="a3_uv">A3 (28 × 40 cm) — R$ 79,00</option>
-                        <option value="a4_uv">A4 (28 × 19 cm) — R$ 49,00</option>
-                      </>
-                    ) : (
-                      <>
-                        <option value="metro_textil">Metro (38 × 100 cm) — R$ 84,90</option>
-                        <option value="a3_textil">A3 (38 × 50 cm) — R$ 54,90</option>
-                        <option value="a4_textil">A4 (38 × 25 cm) — R$ 34,90</option>
-                      </>
-                    )}
-                  </select>
-                </div>
-
-                <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
-                  <span className="font-bold text-slate-600">Custo Base (Empresa DTF):</span>
-                  <span className="text-base font-black text-purple-700 font-mono">
-                    {formatCurrency(dtfBaseCost)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
-                <span className="font-extrabold text-slate-800 uppercase text-xs block border-b border-slate-200 pb-2">
-                  2. CUSTO DE ENTREGA E MARGEM
-                </span>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Frete de Chegada (R$):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={dtfFreight}
-                    onChange={(e) => setDtfFreight(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-slate-800 outline-hidden"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Margem de Lucro (%):</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={dtfMargin}
-                    onChange={(e) => setDtfMargin(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 font-mono font-bold text-emerald-700 outline-hidden"
-                  />
-                </div>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Tecnologia DTF:</label>
+              <select
+                value={dtfType}
+                onChange={(e: any) => {
+                  setDtfType(e.target.value);
+                  setDtfFormatKey(e.target.value === "dtf_uv" ? "metro_uv" : "metro_textil");
+                }}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+              >
+                <option value="dtf_uv">DTF UV (Rígidos/Canecas/Brindes)</option>
+                <option value="dtf_textil">DTF Têxtil (Camisetas/Tecidos)</option>
+              </select>
             </div>
 
-            <div className="pt-3 border-t border-slate-200 space-y-3">
-              <span className="font-extrabold text-slate-900 uppercase text-xs block">
-                3. RESUMO DA PRECIFICAÇÃO DTF (VENDA DIRETA DO SERVIÇO)
-              </span>
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Tamanho / Formato Fornecedor:</label>
+              <select
+                value={dtfFormatKey}
+                onChange={(e) => setDtfFormatKey(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+              >
+                {dtfType === "dtf_uv" ? (
+                  <>
+                    <option value="a4_uv">A4 (28 × 19 cm) — Custo R$ {dtfSupplierPrices.a4_uv.cost.toFixed(2)}</option>
+                    <option value="a3_uv">A3 (28 × 40 cm) — Custo R$ {dtfSupplierPrices.a3_uv.cost.toFixed(2)}</option>
+                    <option value="metro_uv">Metro (28 × 100 cm) — Custo R$ {dtfSupplierPrices.metro_uv.cost.toFixed(2)}</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="a4_textil">A4 (38 × 25 cm) — Custo R$ {dtfSupplierPrices.a4_textil.cost.toFixed(2)}</option>
+                    <option value="a3_textil">A3 (38 × 50 cm) — Custo R$ {dtfSupplierPrices.a3_textil.cost.toFixed(2)}</option>
+                    <option value="metro_textil">Metro (38 × 100 cm) — Custo R$ {dtfSupplierPrices.metro_textil.cost.toFixed(2)}</option>
+                  </>
+                )}
+              </select>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="p-4 bg-slate-100 rounded-2xl border border-slate-300 text-center space-y-1">
-                  <span className="text-[10px] font-extrabold text-slate-500 uppercase block">CUSTO TOTAL (DTF+Frete)</span>
-                  <div className="text-xl font-black text-slate-800 font-mono">
-                    {formatCurrency(dtfTotalCost)}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-300 text-center space-y-1">
-                  <span className="text-[10px] font-extrabold text-emerald-700 uppercase block">LUCRO REAL (R$)</span>
-                  <div className="text-xl font-black text-emerald-600 font-mono">
-                    {formatCurrency(dtfProfit)}
-                  </div>
-                </div>
-
-                <div className="p-4 bg-sky-600 text-white rounded-2xl text-center space-y-1 shadow-md">
-                  <span className="text-[10px] font-extrabold text-sky-200 uppercase block">PREÇO FINAL DE VENDA</span>
-                  <div className="text-2xl font-black text-white font-mono">
-                    {formatCurrency(dtfFinalPrice)}
-                  </div>
-                </div>
-              </div>
+          <div className="p-4 bg-purple-50 rounded-2xl border border-purple-200 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-purple-900 font-bold block uppercase">PREÇO SUGERIDO DE VENDA DTF</span>
+              <span className="text-3xl font-black text-purple-950 font-mono">{formatCurrency(dtfFinalPrice)}</span>
+            </div>
+            <div className="text-right text-xs">
+              <span className="text-purple-800 font-bold block">Lucro Bruto: {formatCurrency(dtfProfit)}</span>
+              <span className="text-purple-600 font-medium text-[10px]">Custo Total: {formatCurrency(dtfTotalCost)}</span>
             </div>
           </div>
         </div>
       ) : (
-        /* ================= VIEW 2: FULL PAGE REAL-TIME BOM & PRICING EDITOR ================= */
-        <div className="space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-1">
-              <button
-                onClick={handleBackToGrid}
-                className="text-xs text-sky-600 font-bold hover:underline flex items-center gap-1 mb-1 cursor-pointer"
-              >
-                <ArrowLeft className="w-4 h-4" /> Voltar para Produtos
-              </button>
-              <span className="text-[11px] font-extrabold uppercase text-sky-600 tracking-wider block">
-                ENGENHARIA DE PRODUTO & FICHA TÉCNICA (BOM)
+        /* ================= VIEW 4: VISUAL COMMUNICATION CALCULATOR (BANNERS & ADESIVOS M2) ================= */
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-3xl mx-auto">
+          <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] font-extrabold text-emerald-600 uppercase tracking-wider block">
+                CALCULADORA DE COMUNICAÇÃO VISUAL
               </span>
-              <h1 className="text-2xl font-black text-slate-800">
-                Ficha Técnica e Precificação ({activeProduct?.name})
-              </h1>
+              <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                <Maximize2 className="w-5 h-5 text-emerald-600" />
+                Precificação de Banners & Adesivos por m²
+              </h2>
+            </div>
+            <button
+              onClick={handleSaveCvProduct}
+              disabled={saving}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer flex items-center gap-1.5"
+            >
+              <Save className="w-4 h-4" /> Salvar no Catálogo
+            </button>
+          </div>
+
+          {/* Banner Min Charge Notice Badge */}
+          <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs font-bold text-amber-900 flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            <span>
+              Regra de Trava Mínima: Banners menores que 1,0 m² utilizam o Custo Mínimo Fixo de R$ {bannerMinPrice} do fornecedor para proteger a margem de lucro da gráfica!
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Largura (Metros):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={bannerWidth}
+                onChange={(e) => setBannerWidth(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+              />
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSaveProduct}
-                disabled={saving}
-                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-2 cursor-pointer"
-              >
-                <Save className="w-4 h-4" />
-                <span>{saving ? "Salvando..." : "Salvar Precificação e Ficha Técnica"}</span>
-              </button>
+            <div>
+              <label className="font-bold text-slate-700 block mb-1">Altura (Metros):</label>
+              <input
+                type="number"
+                step="0.01"
+                value={bannerHeight}
+                onChange={(e) => setBannerHeight(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+              />
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            {/* Left Column */}
-            <div className="space-y-4">
-              {/* MACHINE SELECTION (With option "Nenhuma Impressora") */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 text-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <Printer className="w-4 h-4 text-sky-600" /> Impressora / Máquina Vinculada
-                  </span>
-                  <span className="bg-slate-900 text-white font-mono text-[10px] font-bold px-2 py-0.5 rounded-md">
-                    {selectedPrinterId ? `R$ ${activeMachineCost.toFixed(4)} / imp` : "Sem Máquina"}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Selecione a Impressora</label>
-                  <select
-                    value={selectedPrinterId}
-                    onChange={(e) => setSelectedPrinterId(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-sky-500"
-                  >
-                    <option value="">Nenhuma / Não Utiliza Impressora (Custo R$ 0,00)</option>
-                    {printersList.map((pr) => (
-                      <option key={pr.id} value={pr.id}>
-                        {pr.name} ({pr.categoryName}) — R$ {parseFloat(pr.fixedCostPerImp).toFixed(4)}/imp
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Yield Matrix Presets */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 text-xs">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <span className="font-bold text-slate-800 flex items-center gap-1.5">
-                    <Calculator className="w-4 h-4 text-sky-600" /> Matriz de Aproveitamento
-                  </span>
-                  <span className="bg-sky-100 text-sky-800 font-mono font-bold text-[10px] px-2 py-0.5 rounded-md">
-                    Unidade: {compositionData.salesUnit || "UN"}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Formato / Aproveitamento por Folha</label>
-                  <select
-                    value={compositionData.yieldPerA3Sheet}
-                    onChange={(e) => {
-                      const yieldNum = parseInt(e.target.value, 10) || 1;
-                      const preset = YIELD_MATRIX_PRESETS.find((m) => m.yieldPerSheet === yieldNum);
-                      const factor = preset ? preset.factor : parseFloat((1 / yieldNum).toFixed(4));
-                      setCompositionData({
-                        ...compositionData,
-                        yieldPerA3Sheet: yieldNum,
-                        yieldFactor: factor,
-                      });
-                    }}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2 font-bold text-slate-800 outline-hidden focus:ring-2 focus:ring-sky-500"
-                  >
-                    {YIELD_MATRIX_PRESETS.map((m) => (
-                      <option key={m.label} value={m.yieldPerSheet}>
-                        {m.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Loss Margin, Tax & Card Fees */}
-              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 text-xs">
-                <span className="font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-100 pb-2">
-                  <Percent className="w-4 h-4 text-purple-600" /> Taxas Tributárias e Margens (%)
-                </span>
-
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Perda / Erro Impressão (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={compositionData.lossMarginPercent}
-                      onChange={(e) =>
-                        setCompositionData({ ...compositionData, lossMarginPercent: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-800 outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Imposto / Simples (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={compositionData.taxPercent}
-                      onChange={(e) =>
-                        setCompositionData({ ...compositionData, taxPercent: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-800 outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Maquininha InfinitePay (%)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={compositionData.cardTaxPercent}
-                      onChange={(e) =>
-                        setCompositionData({ ...compositionData, cardTaxPercent: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-slate-800 outline-hidden"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Margem de Lucro (%)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={compositionData.targetMarginPercent}
-                      onChange={(e) =>
-                        setCompositionData({ ...compositionData, targetMarginPercent: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1.5 font-bold text-emerald-700 outline-hidden"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Dark Calculation Summary Panel */}
-              <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 space-y-3 shadow-md text-xs">
-                <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-400 font-bold block uppercase">
-                    CUSTO BASE DA COMPOSIÇÃO (BOM)
-                  </span>
-                  <div className="text-lg font-black text-slate-200 font-mono">
-                    R$ {calc.baseCompositionCost.toFixed(4)}
-                  </div>
-                </div>
-
-                <div className="p-3.5 bg-emerald-950/80 rounded-xl border border-emerald-500/50 space-y-1">
-                  <span className="text-[10px] text-emerald-300 font-bold block uppercase">
-                    PREÇO DE VENDA SUGERIDO ({compositionData.salesUnit})
-                  </span>
-                  <div className="text-2xl font-black text-emerald-400">
-                    {formatCurrency(calc.suggestedPrice)}
-                  </div>
-                  <div className="text-[10px] text-emerald-200 pt-1 flex justify-between">
-                    <span>Lucro Bruto Estimado:</span>
-                    <span className="font-extrabold">{formatCurrency(calc.profitAmount)} ({calc.profitRealPercent.toFixed(1)}%)</span>
-                  </div>
-                </div>
-              </div>
+          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-emerald-900 font-bold block uppercase">PREÇO SUGERIDO BANNER LONA</span>
+              <span className="text-3xl font-black text-emerald-950 font-mono">
+                {formatCurrency(bannerCalcRes.suggestedPrice)}
+              </span>
             </div>
-
-            {/* Right Column: Editable Ficha Técnica BOM with Material Picker */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
-                <div className="p-3.5 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                  <div>
-                    <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                      Ficha Técnica Unificada (BOM) — Composição do Produto
-                    </h3>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleAddComponent}
-                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 cursor-pointer shadow-xs"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-sky-400" />
-                    <span>+ Componente</span>
-                  </button>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-100/60 text-slate-500 font-bold text-[10px] uppercase border-b border-slate-200">
-                      <tr>
-                        <th className="p-2.5">CATEGORIA</th>
-                        <th className="p-2.5">SELECIONAR DO ESTOQUE DE MATERIAIS / COMPONENTE</th>
-                        <th className="p-2.5 text-center">UNIDADE</th>
-                        <th className="p-2.5 text-center">QTD. CONSUMIDA (4 DEC)</th>
-                        <th className="p-2.5 text-right">CUSTO UN (R$)</th>
-                        <th className="p-2.5 text-right">CUSTO COMPOSIÇÃO</th>
-                        <th className="p-2.5 text-center">AÇÃO</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-medium">
-                      {compositionData.components.map((comp, idx) => {
-                        const totalCompCost = comp.category === "nenhum" ? 0 : comp.quantityConsumed * comp.unitCost;
-
-                        return (
-                          <tr key={comp.id || idx} className="hover:bg-slate-50 transition-colors">
-                            <td className="p-2.5">
-                              <select
-                                value={comp.category}
-                                onChange={(e) =>
-                                  handleComponentChange(idx, "category", e.target.value)
-                                }
-                                className="bg-slate-50 border border-slate-300 rounded-lg p-1 text-[11px] font-bold text-slate-800 outline-hidden"
-                              >
-                                <option value="insumo">Insumo / Papel</option>
-                                <option value="maquina">Máquina / Clique</option>
-                                <option value="mao_obra">Mão de Obra</option>
-                                <option value="embalagem">Embalagem</option>
-                                <option value="nenhum">Nenhum / Não Usar</option>
-                              </select>
-                            </td>
-
-                            <td className="p-2.5 space-y-1">
-                              {/* Search / Selector from Registered Materials */}
-                              {comp.category === "insumo" && materialsList.length > 0 && (
-                                <select
-                                  onChange={(e) => handleSelectMaterialForComponent(idx, e.target.value)}
-                                  className="w-full bg-sky-50 border border-sky-300 rounded-lg p-1 text-[11px] font-bold text-sky-900 outline-hidden mb-1"
-                                >
-                                  <option value="">+ Selecionar dos Materiais e Insumos...</option>
-                                  {materialsList.map((m) => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.name} ({m.code}) — R$ {parseFloat(m.costPrice).toFixed(4)}/{m.consumptionUnit}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-
-                              <input
-                                type="text"
-                                value={comp.name}
-                                onChange={(e) => handleComponentChange(idx, "name", e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-300 rounded-lg p-1 font-bold text-slate-800 outline-hidden"
-                              />
-                            </td>
-
-                            <td className="p-2.5 text-center">
-                              <select
-                                value={comp.unit}
-                                onChange={(e) => handleComponentChange(idx, "unit", e.target.value)}
-                                className="bg-slate-50 border border-slate-300 rounded-lg p-1 text-[11px] font-bold text-slate-800 outline-hidden uppercase"
-                              >
-                                <option value="FLS">FLS</option>
-                                <option value="CLQ">CLQ</option>
-                                <option value="MIN">MIN</option>
-                                <option value="UN">UN</option>
-                                <option value="M">M</option>
-                                <option value="M2">M²</option>
-                              </select>
-                            </td>
-
-                            <td className="p-2.5 text-center">
-                              <input
-                                type="number"
-                                step="0.0001"
-                                disabled={comp.category === "nenhum"}
-                                value={comp.quantityConsumed}
-                                onChange={(e) =>
-                                  handleComponentChange(idx, "quantityConsumed", e.target.value)
-                                }
-                                className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-1 text-center font-mono font-extrabold text-slate-900 outline-hidden disabled:opacity-50"
-                              />
-                            </td>
-
-                            <td className="p-2.5 text-right">
-                              <input
-                                type="number"
-                                step="0.0001"
-                                disabled={comp.category === "nenhum"}
-                                value={comp.unitCost}
-                                onChange={(e) =>
-                                  handleComponentChange(idx, "unitCost", e.target.value)
-                                }
-                                className="w-24 bg-slate-50 border border-slate-300 rounded-lg p-1 text-right font-mono font-bold text-slate-800 outline-hidden disabled:opacity-50"
-                              />
-                            </td>
-
-                            <td className="p-2.5 text-right font-mono font-extrabold text-emerald-700">
-                              R$ {totalCompCost.toFixed(4)}
-                            </td>
-
-                            <td className="p-2.5 text-center">
-                              <button
-                                onClick={() => handleRemoveComponent(idx)}
-                                className="p-1 text-slate-400 hover:text-red-600 rounded-md cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="p-3.5 bg-slate-900 text-white flex items-center justify-between">
-                  <span className="font-bold text-xs uppercase tracking-wide">
-                    SOMA TOTAL DA COMPOSIÇÃO BASE
-                  </span>
-                  <span className="text-xl font-black text-emerald-400 font-mono">
-                    R$ {calc.baseCompositionCost.toFixed(4)}
-                  </span>
-                </div>
-              </div>
+            <div className="text-right text-xs">
+              <span className="text-emerald-800 font-bold block">Área Total: {bannerCalcRes.areaM2.toFixed(2)} m²</span>
+              <span className="text-emerald-600 font-medium text-[10px]">Custo Base: {formatCurrency(bannerCalcRes.totalCostWithFreight)}</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* New Category Modal */}
+      {/* Modal New Category */}
       {showNewCategoryModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-150 space-y-3">
-            <h3 className="text-base font-bold text-slate-800">Criar Nova Categoria de Produto</h3>
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="font-extrabold text-slate-900 text-sm">Nova Categoria de Produto</h3>
             <form onSubmit={handleAddCategory} className="space-y-3 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Nome da Categoria</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Rótulos & Adesivos Especiais"
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold outline-hidden focus:ring-2 focus:ring-sky-500"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
+              <input
+                type="text"
+                required
+                placeholder="Ex: Cartões de Visita Premium"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+              />
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setShowNewCategoryModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-semibold"
+                  className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-sky-600 text-white rounded-xl font-bold hover:bg-sky-700"
+                  className="px-4 py-2 bg-sky-600 text-white font-bold rounded-xl shadow-xs"
                 >
                   Criar Categoria
                 </button>
@@ -1358,83 +1051,59 @@ export default function ProdutosPage() {
         </div>
       )}
 
-      {/* New Product Modal */}
+      {/* Modal New Product */}
       {showNewModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 relative animate-in zoom-in-95 duration-150">
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Cadastrar Novo Produto</h3>
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <h3 className="font-extrabold text-slate-900 text-sm">Cadastrar Novo Produto</h3>
             <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 block mb-1">Categoria do Produto</label>
+                <label className="font-bold text-slate-700 block mb-1">Nome do Produto</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Folder A5 Couchê 150g"
+                  value={newProdName}
+                  onChange={(e) => setNewProdName(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Categoria</label>
                 <select
                   value={newProdCategory}
                   onChange={(e) => setNewProdCategory(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 outline-hidden font-bold"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 font-bold"
                 >
-                  {categoriesList.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
+                  {categoriesList.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.label}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Modelo de Ficha Técnica Base</label>
-                <select
-                  value={newProdPreset}
-                  onChange={(e) => setNewProdCategoryPreset(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 outline-hidden font-bold"
-                >
-                  <option value="vazio">Nenhum Modelo (Ficha Técnica Vazia / Sem Componentes)</option>
-                  <option value="cartao_visita">1. Cartão de Visita Premium (Aproveitamento 24 un/A3)</option>
-                  <option value="etiqueta_5cm">2. Etiqueta Adesiva Redonda 5cm (Aproveitamento 40 un/A3)</option>
-                  <option value="caixa_cone">3. Caixa Cone / Pirâmide Festas (Aproveitamento 1 un/A3)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">SKU / Código Único</label>
-                <input
-                  type="text"
-                  placeholder="PRO-CRV-COU300VT"
-                  value={newProdCode}
-                  onChange={(e) => setNewProdCode(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 outline-hidden font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Nome do Produto</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Camiseta Personalizada DTF Têxtil A4"
-                  value={newProdName}
-                  onChange={(e) => setNewProdName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-lg p-2 outline-hidden font-bold"
-                />
-              </div>
-
-              <div className="pt-3 flex justify-end gap-2">
+              <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
-                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg font-semibold"
+                  className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl font-bold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-sky-600 text-white rounded-lg font-semibold hover:bg-sky-700"
+                  className="px-5 py-2 bg-sky-600 text-white font-black rounded-xl shadow-md"
                 >
-                  Cadastrar Produto
+                  Cadastrar
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
     </MainLayout>
   );
 }

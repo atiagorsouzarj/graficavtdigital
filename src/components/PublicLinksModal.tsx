@@ -14,6 +14,12 @@ export default function PublicLinksModal({ onClose }: PublicLinksModalProps) {
 
   const links = [
     {
+      key: "portal_hub",
+      title: "Portal Central do Cliente (Autoatendimento Foto 3)",
+      desc: "Hub principal com carrossel de ofertas, aprovação de arte, rastreio de pedidos e cadastro.",
+      url: `${host}/portal`,
+    },
+    {
       key: "client_signup",
       title: "Cadastro Público de Cliente (PF / PJ)",
       desc: "Formulário rápido para o próprio cliente preencher dados fiscais, endereço e WhatsApp.",

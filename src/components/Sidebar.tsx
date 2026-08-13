@@ -19,6 +19,7 @@ import {
   Settings,
   Code,
   Sparkles,
+  Globe,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -46,7 +47,8 @@ export default function Sidebar({ isOpen }: SidebarProps) {
     {
       group: "CRM & VENDAS",
       items: [
-        { name: "Painel Geral", href: "/", icon: LayoutDashboard },
+        { name: "Dashboard", href: "/", icon: LayoutDashboard },
+        { name: "Portal do Cliente (Público)", href: "/portal", icon: Globe, badge: "Público", highlight: true },
         { name: "CRM - Gestão de Clientes", href: "/clientes", icon: Users, badge: "CRM" },
         { name: "Orçamentos & Pedidos", href: "/orcamentos", icon: FileSpreadsheet },
         { name: "Kanban de Produção", href: "/kanban", icon: Kanban, badge: "Live" },
