@@ -5,9 +5,9 @@ import {
   numeric,
   integer,
   boolean,
-  uuid,
   jsonb,
 } from "drizzle-orm/pg-core";
+import { uuid } from "./uuid";
 
 // 1. Users & Operators
 export const users = pgTable("users", {

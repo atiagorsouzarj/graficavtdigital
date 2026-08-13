@@ -65,8 +65,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Busca cliente por documento
-    const [client] = await db.select().from(clients).where(eq(clients.document, docRaw));
+    // Busca cliente por documento (normalizado: remove máscara de ambos os lados)
+    const normalizedDoc = sql`regexp_replace(${clients.document}, '[^0-9]', '', 'g')`;
+    const [client] = await db
+      .select()
+      .from(clients)
+      .where(eq(normalizedDoc, docClean));
     if (!client) {
       return NextResponse.json(
         {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { clients, clientOtps, clientSessions, clientActivityLog } from "@/db/schema";
-import { eq, and, desc, isNull, gt } from "drizzle-orm";
+import { eq, and, desc, isNull, gt, sql } from "drizzle-orm";
 import {
   hashOtp,
   createSessionToken,
@@ -33,11 +33,19 @@ export async function POST(request: Request) {
     };
 
     const docRaw = String(body.cpfCnpj || "").trim();
+    const docClean = docRaw.replace(/\D/g, "");
     const code = String(body.code || "").trim();
 
     if (!docRaw || !code) {
       return NextResponse.json(
         { error: "CPF/CNPJ e código são obrigatórios." },
+        { status: 400 }
+      );
+    }
+
+    if (!docClean) {
+      return NextResponse.json(
+        { error: "CPF/CNPJ inválido." },
         { status: 400 }
       );
     }
@@ -49,8 +57,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Busca cliente
-    const [client] = await db.select().from(clients).where(eq(clients.document, docRaw));
+    // Busca cliente por documento (normalizado: remove máscara de ambos os lados)
+    const normalizedDoc = sql`regexp_replace(${clients.document}, '[^0-9]', '', 'g')`;
+    const [client] = await db
+      .select()
+      .from(clients)
+      .where(eq(normalizedDoc, docClean));
     if (!client) {
       return NextResponse.json(
         { error: "CPF/CNPJ não encontrado." },
