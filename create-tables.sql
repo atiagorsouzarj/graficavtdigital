@@ -185,6 +185,11 @@ CREATE TABLE IF NOT EXISTS quotes_orders (
     internal_tags TEXT,
     operator_id UUID REFERENCES users(id) ON DELETE SET NULL,
     operator_name TEXT DEFAULT 'Tiago Souza',
+    -- v3.3.0: tokens de acesso público (aprovação de arte / rastreio sem login)
+    art_approval_token TEXT,
+    art_approval_token_expires_at TIMESTAMP,
+    tracking_token TEXT,
+    tracking_token_expires_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     updated_at TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -296,3 +301,76 @@ CREATE TABLE IF NOT EXISTS api_keys (
     last_used_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- ============================================================================
+-- v3.3.0 - CLIENT PORTAL (Portal do Cliente)
+-- ============================================================================
+
+-- 17. Client OTPs - Códigos de acesso temporários (CPF/CNPJ + código por e-mail)
+CREATE TABLE IF NOT EXISTS client_otps (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT 'email',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    blocked_until TIMESTAMP,
+    used_at TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- 18. Client Sessions - Sessões ativas dos clientes autenticados
+CREATE TABLE IF NOT EXISTS client_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    refresh_expires_at TIMESTAMP NOT NULL,
+    last_used_at TIMESTAMP NOT NULL DEFAULT now(),
+    user_agent TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- 19. Client Activity Log - Auditoria de ações do portal
+CREATE TABLE IF NOT EXISTS client_activity_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id UUID REFERENCES clients(id) ON DELETE SET NULL,
+    session_id UUID REFERENCES client_sessions(id) ON DELETE SET NULL,
+    action TEXT NOT NULL,
+    resource_type TEXT,
+    resource_id TEXT,
+    details TEXT,
+    ip_address TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- 20. Gabaritos - Galeria de templates para download
+CREATE TABLE IF NOT EXISTS gabaritos (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT NOT NULL UNIQUE,
+    title TEXT NOT NULL,
+    description TEXT,
+    category TEXT NOT NULL DEFAULT 'outros',
+    product_type TEXT,
+    file_url TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_type TEXT NOT NULL,
+    file_size_kb INTEGER DEFAULT 0,
+    width_mm INTEGER,
+    height_mm INTEGER,
+    bleed_mm INTEGER DEFAULT 3,
+    requires_auth BOOLEAN NOT NULL DEFAULT false,
+    downloads INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    updated_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Índices do portal
+CREATE INDEX IF NOT EXISTS idx_client_otps_client_id ON client_otps(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_sessions_client_id ON client_sessions(client_id);
+CREATE INDEX IF NOT EXISTS idx_client_activity_log_client_id ON client_activity_log(client_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_orders_client_id ON quotes_orders(client_id);
