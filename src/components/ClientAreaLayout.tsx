@@ -35,11 +35,12 @@ export default function ClientAreaLayout({ clientName, children }: ClientAreaLay
   const navItems = [
     { href: "/cliente/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { href: "/cliente/pedidos", label: "Meus Pedidos", icon: ShoppingBag },
+    { href: "/cliente/gabaritos", label: "Gabaritos", icon: FileText },
     { href: "/cliente/dados", label: "Meus Dados", icon: User },
   ];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col text-slate-800 font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-sky-50/60 to-indigo-50/40 flex flex-col text-slate-800 font-sans">
       {/* Header da Área do Cliente */}
       <header className="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30 shadow-md">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -79,13 +80,13 @@ export default function ClientAreaLayout({ clientName, children }: ClientAreaLay
           </nav>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800 rounded-lg text-xs">
-              <div className="w-7 h-7 rounded-full bg-sky-600 text-white font-bold text-[10px] flex items-center justify-center">
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-800/80 border border-slate-700 rounded-xl text-xs">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 text-white font-bold text-[10px] flex items-center justify-center shadow-sm">
                 {clientName.substring(0, 2).toUpperCase()}
               </div>
               <div className="text-left leading-tight">
                 <div className="font-bold text-white text-[11px]">{clientName}</div>
-                <div className="text-[9px] text-slate-400">Cliente</div>
+                <div className="text-[9px] text-sky-400 font-bold uppercase tracking-wide">Cliente</div>
               </div>
             </div>
             <button

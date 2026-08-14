@@ -46,7 +46,12 @@ export default function EmailTemplatesPage() {
   // Email Test State
   const [testEmailAddress, setTestEmailAddress] = useState("cliente.exemplo@gmail.com");
   const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [sendingTest, setSendingTest] = useState(false);
+
+  // Save state
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   // Preview tab
   const [activeTab, setActiveTab] = useState<"editor" | "html_preview">("editor");
@@ -80,14 +85,68 @@ export default function EmailTemplatesPage() {
     setBodyText(tpl.body);
   };
 
-  const handleSendTestEmail = () => {
+  // v3.3.3: envio REAL via /api/email (mesmo motor SMTP do Portal do Cliente)
+  const handleSendTestEmail = async () => {
     if (!testEmailAddress.trim()) return;
     setSendingTest(true);
-    setTimeout(() => {
+    setSendSuccess(false);
+    setSendError(null);
+    try {
+      const res = await fetch("/api/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: testEmailAddress,
+          subject: subjectText || titleText || "Teste de Template",
+          body: bodyText,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSendSuccess(true);
+        setTimeout(() => setSendSuccess(false), 6000);
+      } else {
+        setSendError(data.error || "Falha no envio do e-mail de teste.");
+        setTimeout(() => setSendError(null), 12000);
+      }
+    } catch {
+      setSendError("Erro de conexão ao enviar o e-mail de teste.");
+      setTimeout(() => setSendError(null), 12000);
+    } finally {
       setSendingTest(false);
-      setSendSuccess(true);
-      setTimeout(() => setSendSuccess(false), 4000);
-    }, 1500);
+    }
+  };
+
+  // v3.3.3: salvar edições do template no banco (PUT /api/templates)
+  const handleSaveTemplate = async () => {
+    if (!selectedTemplate) return;
+    setSaving(true);
+    setSaveSuccess(false);
+    try {
+      const res = await fetch("/api/templates", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedTemplate.id,
+          title: titleText,
+          subject: subjectText,
+          body: bodyText,
+          active: selectedTemplate.active,
+        }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 4000);
+        // Atualiza a lista local sem perder a seleção atual
+        setTemplates((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+        setSelectedTemplate((prev) => (prev && prev.id === updated.id ? { ...prev, ...updated } : prev));
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -111,7 +170,19 @@ export default function EmailTemplatesPage() {
         {sendSuccess && (
           <div className="p-3.5 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-2xl text-xs font-extrabold flex items-center gap-2 animate-in fade-in">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>E-mail de teste disparado com sucesso para {testEmailAddress} via Servidor SMTP!</span>
+            <span>E-mail de teste ENVIADO para {testEmailAddress} via SMTP! Verifique a caixa de entrada (e o spam).</span>
+          </div>
+        )}
+        {sendError && (
+          <div className="p-3.5 bg-red-100 text-red-900 border border-red-300 rounded-2xl text-xs font-extrabold flex items-start gap-2 animate-in fade-in">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <span>{sendError}</span>
+          </div>
+        )}
+        {saveSuccess && (
+          <div className="p-3.5 bg-sky-100 text-sky-900 border border-sky-300 rounded-2xl text-xs font-extrabold flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-5 h-5 text-sky-600 shrink-0" />
+            <span>Template salvo no banco de dados com sucesso!</span>
           </div>
         )}
 
@@ -186,10 +257,18 @@ export default function EmailTemplatesPage() {
                 <button
                   onClick={handleSendTestEmail}
                   disabled={sendingTest}
-                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>{sendingTest ? "Enviando..." : "Testar Disparo"}</span>
+                </button>
+                <button
+                  onClick={handleSaveTemplate}
+                  disabled={saving || !selectedTemplate}
+                  className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saving ? "Salvando..." : "Salvar Template"}</span>
                 </button>
               </div>
             </div>

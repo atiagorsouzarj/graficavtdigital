@@ -15,6 +15,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import ClientAreaLayout from "@/components/ClientAreaLayout";
+import OrderJourneyStepper from "@/components/OrderJourneyStepper";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
 
 interface Client { id: string; name: string; email: string; }
@@ -141,35 +142,40 @@ export default function ClientePedidosPage() {
                   <Link
                     key={o.id}
                     href={`/cliente/pedidos/${o.id}`}
-                    className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-3"
+                    className="p-4 hover:bg-slate-50 transition-colors block group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${st.color}`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-mono font-black text-sky-700">{o.code}</div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">
-                          {formatDateOnly(o.createdAt)}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${st.color}`}>
+                          <Icon className="w-5 h-5" />
                         </div>
-                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${st.color}`}>
-                          {st.label}
+                        <div className="min-w-0">
+                          <div className="font-mono font-black text-sky-700">{o.code}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">
+                            {formatDateOnly(o.createdAt)}
+                          </div>
+                          <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${st.color}`}>
+                            {st.label}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-sm font-black text-slate-800 font-mono">
-                        {formatCurrency(o.totalAmount)}
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-black text-slate-800 font-mono">
+                          {formatCurrency(o.totalAmount)}
+                        </div>
+                        <div
+                          className={`text-[10px] font-bold mt-0.5 ${
+                            o.paymentStatus === "paid" ? "text-emerald-600" : "text-amber-600"
+                          }`}
+                        >
+                          {o.paymentStatus === "paid" ? "✓ PAGO" : "⏳ PENDENTE"}
+                        </div>
                       </div>
-                      <div
-                        className={`text-[10px] font-bold mt-0.5 ${
-                          o.paymentStatus === "paid" ? "text-emerald-600" : "text-amber-600"
-                        }`}
-                      >
-                        {o.paymentStatus === "paid" ? "✓ PAGO" : "⏳ PENDENTE"}
-                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                     </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
+                    <div className="mt-3">
+                      <OrderJourneyStepper order={o} compact />
+                    </div>
                   </Link>
                 );
               })}

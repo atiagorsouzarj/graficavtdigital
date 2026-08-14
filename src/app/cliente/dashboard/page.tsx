@@ -17,6 +17,7 @@ import {
   Printer,
 } from "lucide-react";
 import ClientAreaLayout from "@/components/ClientAreaLayout";
+import OrderJourneyStepper from "@/components/OrderJourneyStepper";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
 
 interface Client {
@@ -131,6 +132,27 @@ export default function ClienteDashboardPage() {
           </div>
         </div>
 
+        {/* Pedido em andamento — jornada do orçamento à entrega */}
+        {pending.length > 0 && (
+          <div className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <span className="text-[10px] font-extrabold text-sky-600 uppercase tracking-wider block">
+                  Pedido em andamento
+                </span>
+                <span className="font-mono font-black text-lg text-slate-800">{pending[0].code}</span>
+              </div>
+              <Link
+                href={`/cliente/pedidos/${pending[0].id}`}
+                className="text-xs text-sky-600 hover:text-sky-700 font-bold flex items-center gap-1"
+              >
+                Ver detalhes <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <OrderJourneyStepper order={pending[0]} />
+          </div>
+        )}
+
         {/* Pedidos recentes */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -158,24 +180,29 @@ export default function ClienteDashboardPage() {
                   <Link
                     key={o.id}
                     href={`/cliente/pedidos/${o.id}`}
-                    className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-sky-300 transition-all flex items-center justify-between gap-3 shadow-xs"
+                    className="bg-white p-4 rounded-2xl border border-slate-200 hover:border-sky-300 hover:shadow-md transition-all block shadow-xs group"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${st.color}`}>
-                        <Icon className="w-5 h-5" />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${st.color}`}>
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-mono font-black text-sky-700 text-sm">{o.code}</div>
+                          <div className="text-[10px] text-slate-500">{formatDateOnly(o.createdAt)}</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="font-mono font-black text-sky-700 text-sm">{o.code}</div>
-                        <div className="text-[10px] text-slate-500">{formatDateOnly(o.createdAt)}</div>
+                      <div className="text-right shrink-0">
+                        <div className="text-xs font-bold text-slate-800">{formatCurrency(o.totalAmount)}</div>
+                        <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${st.color}`}>
+                          {st.label}
+                        </div>
                       </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-sky-500 group-hover:translate-x-0.5 transition-all shrink-0" />
                     </div>
-                    <div className="text-right shrink-0">
-                      <div className="text-xs font-bold text-slate-800">{formatCurrency(o.totalAmount)}</div>
-                      <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${st.color}`}>
-                        {st.label}
-                      </div>
+                    <div className="mt-3">
+                      <OrderJourneyStepper order={o} compact />
                     </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 shrink-0" />
                   </Link>
                 );
               })}

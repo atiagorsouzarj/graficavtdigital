@@ -32,6 +32,31 @@ export default function ClientPortalSettings() {
   const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [seeding, setSeeding] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [smtpTestTo, setSmtpTestTo] = useState("");
+  const [smtpTesting, setSmtpTesting] = useState(false);
+  const [smtpTestResult, setSmtpTestResult] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const testSmtp = async () => {
+    setSmtpTesting(true);
+    setSmtpTestResult(null);
+    try {
+      const r = await fetch("/api/admin/client-portal/smtp-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: smtpTestTo }),
+      });
+      const d = await r.json();
+      if (d.success) {
+        setSmtpTestResult({ ok: true, text: d.message || "E-mail de teste enviado!" });
+      } else {
+        setSmtpTestResult({ ok: false, text: d.error || "Falha no teste SMTP." });
+      }
+    } catch {
+      setSmtpTestResult({ ok: false, text: "Erro de conexão ao testar SMTP." });
+    } finally {
+      setSmtpTesting(false);
+    }
+  };
 
   const load = async () => {
     try {
@@ -275,12 +300,13 @@ export default function ClientPortalSettings() {
       {/* Configurações de E-mail */}
       <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-4">
         <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-          <Mail className="w-5 h-5 text-sky-600" /> E-mail do Portal
+          <Mail className="w-5 h-5 text-sky-600" /> E-mail do Portal (SMTP)
         </h3>
         <p className="text-xs text-slate-500">
-          Quando o SMTP está configurado nas variáveis de ambiente do servidor, os OTPs são
-          enviados por e-mail real. Caso contrário, são salvos no log do sistema (em
-          /api/admin/client-portal/config).
+          Configure aqui o servidor SMTP para envio real dos códigos OTP. As configurações do
+          painel têm prioridade; se vazias, o sistema usa as variáveis de ambiente
+          (SMTP_HOST/SMTP_USER/SMTP_PASS). Sem nenhuma configuração, os e-mails ficam apenas no
+          log do sistema e <strong>não são entregues</strong>.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
           <div>
@@ -288,7 +314,7 @@ export default function ClientPortalSettings() {
               SMTP Host
             </label>
             <input
-              defaultValue={settings.client_portal_smtp_host || process.env.SMTP_HOST || ""}
+              defaultValue={settings.client_portal_smtp_host || ""}
               onBlur={(e) => save("client_portal_smtp_host", e.target.value)}
               placeholder="smtp.gmail.com"
               className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
@@ -296,15 +322,108 @@ export default function ClientPortalSettings() {
           </div>
           <div>
             <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">
-              E-mail Remetente
+              Porta / Conexão
+            </label>
+            <div className="flex gap-2">
+              <input
+                defaultValue={settings.client_portal_smtp_port || "587"}
+                onBlur={(e) => save("client_portal_smtp_port", e.target.value)}
+                placeholder="587"
+                className="w-24 bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
+              />
+              <select
+                defaultValue={settings.client_portal_smtp_secure || "false"}
+                onChange={(e) => save("client_portal_smtp_secure", e.target.value)}
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
+              >
+                <option value="false">STARTTLS (porta 587)</option>
+                <option value="true">SSL/TLS (porta 465)</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">
+              Usuário SMTP
             </label>
             <input
-              defaultValue={settings.client_portal_smtp_from || process.env.SMTP_FROM || ""}
-              onBlur={(e) => save("client_portal_smtp_from", e.target.value)}
-              placeholder="noreply@printflow.com.br"
+              defaultValue={settings.client_portal_smtp_user || ""}
+              onBlur={(e) => save("client_portal_smtp_user", e.target.value)}
+              placeholder="seuemail@gmail.com"
+              autoComplete="off"
               className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
             />
           </div>
+          <div>
+            <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">
+              Senha SMTP (Senha de App)
+            </label>
+            <input
+              type="password"
+              defaultValue={settings.client_portal_smtp_pass || ""}
+              onBlur={(e) => save("client_portal_smtp_pass", e.target.value)}
+              placeholder="•••• •••• •••• ••••"
+              autoComplete="new-password"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-[10px] font-extrabold text-slate-500 uppercase block mb-1">
+              E-mail Remetente (From)
+            </label>
+            <input
+              defaultValue={settings.client_portal_smtp_from || ""}
+              onBlur={(e) => save("client_portal_smtp_from", e.target.value)}
+              placeholder="VTDIGITAL ART STUDIO <noreply@vtdigital.site>"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 outline-hidden focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+        </div>
+
+        {/* Teste SMTP */}
+        <div className="border-t border-slate-100 pt-4 space-y-2">
+          <label className="text-[10px] font-extrabold text-slate-500 uppercase block">
+            Testar envio real
+          </label>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <input
+              value={smtpTestTo}
+              onChange={(e) => setSmtpTestTo(e.target.value)}
+              placeholder="seu-email@para-teste.com"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg p-2 text-xs outline-hidden focus:ring-2 focus:ring-sky-500"
+            />
+            <button
+              type="button"
+              onClick={testSmtp}
+              disabled={smtpTesting || !smtpTestTo}
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 shrink-0"
+            >
+              {smtpTesting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Enviando...
+                </>
+              ) : (
+                <>
+                  <Send className="w-3.5 h-3.5" /> Enviar e-mail de teste
+                </>
+              )}
+            </button>
+          </div>
+          {smtpTestResult && (
+            <div
+              className={`p-3 rounded-xl flex items-start gap-2 text-xs font-semibold ${
+                smtpTestResult.ok
+                  ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
+                  : "bg-red-50 border border-red-200 text-red-700"
+              }`}
+            >
+              {smtpTestResult.ok ? (
+                <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+              ) : (
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+              )}
+              <span className="break-all">{smtpTestResult.text}</span>
+            </div>
+          )}
         </div>
       </div>
 

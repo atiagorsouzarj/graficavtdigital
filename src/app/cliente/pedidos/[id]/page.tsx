@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import ClientAreaLayout from "@/components/ClientAreaLayout";
+import OrderJourneyStepper from "@/components/OrderJourneyStepper";
 import { formatCurrency, formatDateOnly } from "@/lib/utils";
 
 interface Client { id: string; name: string; email: string; }
@@ -41,16 +42,6 @@ interface OrderDetail {
   createdAt: string;
   items?: Array<{ productName: string; quantity: number; unitPrice: string; totalPrice: string }>;
 }
-
-const TIMELINE = [
-  { key: "draft", label: "1. Pedido criado" },
-  { key: "sent", label: "2. Orçamento enviado" },
-  { key: "art_approval", label: "3. Arte aprovada por você" },
-  { key: "paid", label: "4. Pagamento confirmado" },
-  { key: "in_printing", label: "5. Em produção" },
-  { key: "ready_for_pickup", label: "6. Pronto p/ retirada / envio" },
-  { key: "completed", label: "7. Concluído" },
-];
 
 export default function ClientePedidoDetalhePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -85,17 +76,6 @@ export default function ClientePedidoDetalhePage({ params }: { params: Promise<{
       })
       .catch(() => setNotFound(true));
   }, [id, router]);
-
-  const isStageDone = (stage: string) => {
-    if (!order) return false;
-    if (stage === "paid") return order.paymentStatus === "paid";
-    const done = ["art_approval", "production_ready", "in_printing", "finishing", "ready_for_pickup", "completed"];
-    if (stage === "art_approval") return done.includes(order.status) || order.artApprovalStatus === "approved";
-    if (stage === "in_printing") return ["in_printing", "finishing", "ready_for_pickup", "completed"].includes(order.status);
-    if (stage === "ready_for_pickup") return ["ready_for_pickup", "completed"].includes(order.status);
-    if (stage === "completed") return order.status === "completed";
-    return ["sent", "art_approval", "art_pending", "production_ready", "in_printing", "finishing", "ready_for_pickup", "completed"].includes(order.status);
-  };
 
   if (loading || !client) {
     return (
@@ -185,40 +165,17 @@ export default function ClientePedidoDetalhePage({ params }: { params: Promise<{
           </div>
         )}
 
-        {/* Linha do tempo */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
-          <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide mb-3">
-            Linha do tempo
-          </h3>
-          <div className="space-y-2">
-            {TIMELINE.map((stage, idx) => {
-              const done = isStageDone(stage.key);
-              return (
-                <div
-                  key={idx}
-                  className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                    done
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                      : "bg-slate-50 border-slate-200 text-slate-500"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
-                        done ? "bg-emerald-500 text-white" : "bg-slate-300 text-white"
-                      }`}
-                    >
-                      {done ? "✓" : idx + 1}
-                    </div>
-                    <span className="font-bold text-xs">{stage.label}</span>
-                  </div>
-                  <span className={`text-[10px] font-bold ${done ? "text-emerald-600" : "text-slate-400"}`}>
-                    {done ? "Concluído" : "Aguardando"}
-                  </span>
-                </div>
-              );
-            })}
+        {/* Jornada do pedido: do orçamento à entrega */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide">
+              Acompanhe seu pedido
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 uppercase">
+              Do orçamento à entrega
+            </span>
           </div>
+          <OrderJourneyStepper order={order} />
         </div>
 
         {/* Rastreamento */}
