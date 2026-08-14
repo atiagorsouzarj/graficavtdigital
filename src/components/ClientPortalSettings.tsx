@@ -94,9 +94,12 @@ export default function ClientPortalSettings() {
       });
       const d = await r.json();
       if (d.success) {
+        const nothingNew = !d.clientsCreated && !d.ordersCreated;
         setMsg({
           type: "success",
-          text: `Demo populado: ${d.clientsCreated} cliente(s) e ${d.ordersCreated} pedido(s) criados.`,
+          text: nothingNew
+            ? "Dados demo já existem no banco — nada precisou ser criado. Use os botões abaixo para entrar."
+            : `Demo populado: ${d.clientsCreated} cliente(s) e ${d.ordersCreated} pedido(s) criados.`,
         });
         await load();
       } else {
@@ -119,7 +122,11 @@ export default function ClientPortalSettings() {
         // Abre o login do cliente em nova aba com o CPF pré-preenchido
         const otp = d.otp || "123456";
         const url = `/cliente/login?doc=${encodeURIComponent(document)}&demo_otp=${otp}`;
-        window.open(url, "_blank");
+        // Tenta abrir em nova aba; se o navegador/iframe bloquear popup, navega na mesma aba
+        const win = window.open(url, "_blank");
+        if (!win || win.closed || typeof win.closed === "undefined") {
+          window.location.href = url;
+        }
       } else {
         setMsg({ type: "error", text: d.error || "Erro ao entrar." });
       }

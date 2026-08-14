@@ -14,6 +14,9 @@ import {
   getClientIp,
   getUserAgent,
 } from "@/lib/clientAuth";
+import { isDemoMode } from "@/lib/demoMode";
+
+const DEMO_PASSWORD = "123456";
 
 export const dynamic = "force-dynamic";
 
@@ -70,64 +73,69 @@ export async function POST(request: Request) {
       );
     }
 
-    // Busca OTP mais recente válido
-    const [otp] = await db
-      .select()
-      .from(clientOtps)
-      .where(
-        and(
-          eq(clientOtps.clientId, client.id),
-          isNull(clientOtps.usedAt),
-          gt(clientOtps.expiresAt, new Date())
+    // MODO DEMO: aceita a senha universal 123456 sem precisar de OTP prévio
+    const demoLogin = code === DEMO_PASSWORD && (await isDemoMode());
+
+    if (!demoLogin) {
+      // Busca OTP mais recente válido
+      const [otp] = await db
+        .select()
+        .from(clientOtps)
+        .where(
+          and(
+            eq(clientOtps.clientId, client.id),
+            isNull(clientOtps.usedAt),
+            gt(clientOtps.expiresAt, new Date())
+          )
         )
-      )
-      .orderBy(desc(clientOtps.createdAt))
-      .limit(1);
+        .orderBy(desc(clientOtps.createdAt))
+        .limit(1);
 
-    if (!otp) {
-      return NextResponse.json(
-        { error: "Código expirado ou não encontrado. Solicite um novo código." },
-        { status: 410 }
-      );
-    }
-
-    // Verifica bloqueio por excesso de tentativas
-    if (otp.blockedUntil && otp.blockedUntil > new Date()) {
-      const minutesLeft = Math.ceil((otp.blockedUntil.getTime() - Date.now()) / 60000);
-      return NextResponse.json(
-        {
-          error: `Muitas tentativas erradas. Tente novamente em ${minutesLeft} minutos.`,
-        },
-        { status: 429 }
-      );
-    }
-
-    // Valida hash
-    const expectedHash = hashOtp(code, client.id);
-    if (otp.codeHash !== expectedHash) {
-      const newAttempts = otp.attempts + 1;
-      const updateData: Record<string, unknown> = { attempts: newAttempts };
-      if (newAttempts >= OTP_MAX_ATTEMPTS) {
-        updateData.blockedUntil = new Date(
-          Date.now() + OTP_BLOCK_MINUTES * 60 * 1000
+      if (!otp) {
+        return NextResponse.json(
+          { error: "Código expirado ou não encontrado. Solicite um novo código." },
+          { status: 410 }
         );
       }
-      await db
-        .update(clientOtps)
-        .set(updateData)
-        .where(eq(clientOtps.id, otp.id));
 
-      const remaining = OTP_MAX_ATTEMPTS - newAttempts;
-      const msg =
-        remaining > 0
-          ? `Código incorreto. Você tem mais ${remaining} tentativa(s).`
-          : `Código incorreto. Você excedeu o limite de tentativas. Tente novamente em ${OTP_BLOCK_MINUTES} minutos.`;
+      // Verifica bloqueio por excesso de tentativas
+      if (otp.blockedUntil && otp.blockedUntil > new Date()) {
+        const minutesLeft = Math.ceil((otp.blockedUntil.getTime() - Date.now()) / 60000);
+        return NextResponse.json(
+          {
+            error: `Muitas tentativas erradas. Tente novamente em ${minutesLeft} minutos.`,
+          },
+          { status: 429 }
+        );
+      }
 
-      return NextResponse.json({ error: msg }, { status: 401 });
+      // Valida hash
+      const expectedHash = hashOtp(code, client.id);
+      if (otp.codeHash !== expectedHash) {
+        const newAttempts = otp.attempts + 1;
+        const updateData: Record<string, unknown> = { attempts: newAttempts };
+        if (newAttempts >= OTP_MAX_ATTEMPTS) {
+          updateData.blockedUntil = new Date(
+            Date.now() + OTP_BLOCK_MINUTES * 60 * 1000
+          );
+        }
+        await db
+          .update(clientOtps)
+          .set(updateData)
+          .where(eq(clientOtps.id, otp.id));
+
+        const remaining = OTP_MAX_ATTEMPTS - newAttempts;
+        const msg =
+          remaining > 0
+            ? `Código incorreto. Você tem mais ${remaining} tentativa(s).`
+            : `Código incorreto. Você excedeu o limite de tentativas. Tente novamente em ${OTP_BLOCK_MINUTES} minutos.`;
+
+        return NextResponse.json({ error: msg }, { status: 401 });
+      }
+
+      // Código correto: marca como usado e cria sessão
+      await db.update(clientOtps).set({ usedAt: new Date() }).where(eq(clientOtps.id, otp.id));
     }
-
-    // Código correto: marca como usado e cria sessão
-    await db.update(clientOtps).set({ usedAt: new Date() }).where(eq(clientOtps.id, otp.id));
 
     const ip = await getClientIp();
     const ua = await getUserAgent();
@@ -187,10 +195,18 @@ export async function POST(request: Request) {
       expiresAt: expiresAt.toISOString(),
     });
 
+    // SameSite configurável: use CLIENT_COOKIE_SAMESITE=none quando o app roda
+    // dentro de iframe/preview (cross-site). Padrão: lax (produção normal).
+    const sameSiteEnv = (process.env.CLIENT_COOKIE_SAMESITE || "lax").toLowerCase() as
+      | "lax"
+      | "none"
+      | "strict";
+
     response.cookies.set(CLIENT_SESSION_COOKIE, finalToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
+      // SameSite=None exige Secure=true (regra dos navegadores)
+      secure: sameSiteEnv === "none" ? true : process.env.NODE_ENV === "production",
+      sameSite: sameSiteEnv,
       path: "/",
       maxAge: CLIENT_SESSION_TTL_HOURS * 60 * 60,
     });
