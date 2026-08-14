@@ -56,6 +56,17 @@ export default function EmailTemplatesPage() {
   // Preview tab
   const [activeTab, setActiveTab] = useState<"editor" | "html_preview">("editor");
 
+  // v3.3.5: dados de exemplo para renderizar o preview como o cliente verá
+  const SAMPLE_VARS: Record<string, string> = {
+    nome_cliente: "Maria Silva",
+    codigo_pedido: "PED-000102",
+    valor_total: "R$ 250,00",
+    link_aprovacao: "#",
+    empresa_nome: "VTDIGITAL ART STUDIO",
+  };
+  const renderWithSample = (text: string) =>
+    text.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, name: string) => SAMPLE_VARS[name] ?? `[${name}]`);
+
   // Fetch templates from API
   const fetchTemplates = async () => {
     try {
@@ -312,6 +323,9 @@ export default function EmailTemplatesPage() {
                 <span className="text-[10px] font-extrabold uppercase text-slate-400 block text-center">
                   PREVIEW DO LAYOUT HTML QUE O CLIENTE RECEBE NO E-MAIL
                 </span>
+                <span className="text-[9px] text-slate-400 block text-center -mt-2">
+                  Variáveis substituídas por dados de exemplo: Maria Silva • PED-000102 • R$ 250,00
+                </span>
 
                 <div className="bg-white rounded-2xl max-w-lg mx-auto shadow-md border border-slate-200 p-6 space-y-4 font-sans text-xs text-slate-800">
                   <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
@@ -325,10 +339,19 @@ export default function EmailTemplatesPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <h3 className="font-bold text-slate-900 text-sm">{subjectText || "Seu Orçamento / Prova Digital está Pronta!"}</h3>
-                    <p className="whitespace-pre-wrap leading-relaxed text-slate-600 text-xs">
-                      {bodyText || "Olá Raphaela Pinheiro! Segue o link para conferência..."}
-                    </p>
+                    <h3 className="font-bold text-slate-900 text-sm">
+                      {renderWithSample(subjectText) || "Seu Orçamento / Prova Digital está Pronta!"}
+                    </h3>
+                    {/<[a-z][\s\S]*>/i.test(bodyText) ? (
+                      <div
+                        className="leading-relaxed text-slate-600 text-xs [&_a]:text-sky-600 [&_h2]:text-sm [&_h2]:font-bold [&_strong]:text-slate-800"
+                        dangerouslySetInnerHTML={{ __html: renderWithSample(bodyText) }}
+                      />
+                    ) : (
+                      <p className="whitespace-pre-wrap leading-relaxed text-slate-600 text-xs">
+                        {renderWithSample(bodyText) || "Olá Maria Silva! Segue o link para conferência..."}
+                      </p>
+                    )}
                   </div>
 
                   <div className="pt-2 text-center">
